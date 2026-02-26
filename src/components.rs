@@ -1,4 +1,5 @@
 use macroquad::{prelude::*};
+use crate::render::PPU;
 
 crate::define_all_components! {
     Pos { x: f32, y: f32 },
@@ -7,8 +8,8 @@ crate::define_all_components! {
 
     Render { 
         s_id: crate::sprite_manager::SpriteId = crate::sprite_manager::SpriteId(0),
-        w: f32 = crate::PPU, 
-        h: f32 = crate::PPU, 
+        w: f32 = PPU, 
+        h: f32 = PPU, 
         color: [f32; 4] = [1.0, 1.0, 1.0, 1.0],
         layer: f32 = 0.0,
         flip_x: bool = false,
@@ -22,7 +23,14 @@ crate::define_all_components! {
 
     Player { speed: f32 = 50.0 },
 
-    Collider { w: f32 = crate::PPU, h: f32 = crate::PPU, is_static: bool = true },
+    Collider { w: f32 = PPU, h: f32 = PPU, is_static: bool = true },
+    TileMap {
+        width: usize = 100,
+        height: usize = 100,
+        tile_size: f32 = PPU,
+        brush_sprite: crate::sprite_manager::SpriteId = crate::sprite_manager::SpriteId(0),
+        tiles: Vec<u32> = vec![0; 10000], 
+    },
 }
 
 impl Render {

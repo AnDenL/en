@@ -2,6 +2,7 @@ use inventory;
 
 automod::dir!("src/systems");
 
+#[allow(dead_code)]
 pub struct GameSystem {
     pub name: &'static str,
     pub func: fn(&mut SysCtx),

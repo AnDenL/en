@@ -1,6 +1,97 @@
 use hecs::{World, CommandBuffer, Entity};
+use macroquad::prelude::*;
 use egui_macroquad::egui;
 use crate::components::*;
+
+#[cfg(debug_assertions)]
+pub fn handle_editor_input(
+    world: &mut World, camera: &Camera2D, 
+    selected: &mut Option<hecs::Entity>, dragging: &mut Option<hecs::Entity>, 
+    offset: &mut Vec2, ctx_world: &mut Option<Vec2>, ctx_screen: &mut Option<Vec2>,
+    brush_mode: &mut bool 
+) {
+    let m_pos = mouse_position();
+    let mouse_world = camera.screen_to_world(vec2(m_pos.0, m_pos.1));
+
+    if is_key_pressed(KeyCode::B) {
+        *brush_mode = !*brush_mode;
+        if *brush_mode { println!("Brush Mode: ON"); } 
+        else { println!("Brush Mode: OFF"); }
+    }
+
+    if *brush_mode {
+        if is_mouse_button_down(MouseButton::Left) || is_mouse_button_down(MouseButton::Right) {
+            if let Some(entity) = selected {
+                if let Ok(mut tm) = world.get::<&mut TileMap>(*entity) {
+                    if let Ok(pos) = world.get::<&Pos>(*entity) {
+                        let offset_x = (tm.width as f32 * tm.tile_size) / 2.0;
+                        let offset_y = (tm.height as f32 * tm.tile_size) / 2.0;
+                        let map_start_x = pos.x - offset_x;
+                        let map_start_y = pos.y - offset_y;
+
+                        let local_x = mouse_world.x - map_start_x;
+                        let local_y = mouse_world.y - map_start_y;
+                        
+                        let grid_x = (local_x / tm.tile_size).floor() as i32;
+                        let grid_y = (local_y / tm.tile_size).floor() as i32;
+
+                        if grid_x >= 0 && grid_x < tm.width as i32 && grid_y >= 0 && grid_y < tm.height as i32 {
+                            let idx = (grid_y as usize) * tm.width + (grid_x as usize);
+                            if is_mouse_button_down(MouseButton::Left) {
+                                tm.tiles[idx] = tm.brush_sprite.0;
+                            } else {
+                                tm.tiles[idx] = 0; 
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return;
+    }
+
+    let m_pos = mouse_position();
+    let mouse_world = camera.screen_to_world(vec2(m_pos.0, m_pos.1));
+
+    if is_mouse_button_pressed(MouseButton::Left) {
+        *ctx_world = None; 
+        *ctx_screen = None;
+
+        let mut clicked = None;
+        for (id, (pos, ren)) in world.query_mut::<(&Pos, &Render)>() {
+            let rect = Rect::new(pos.x - ren.w / 2.0, pos.y - ren.h / 2.0, ren.w, ren.h);
+            if rect.contains(mouse_world) {
+                clicked = Some(id);
+                *offset = vec2(pos.x, pos.y) - mouse_world;
+            }
+        }
+        *selected = clicked; 
+        *dragging = clicked; 
+    }
+
+    if is_mouse_button_down(MouseButton::Left) {
+        if let Some(entity) = dragging {
+            if let Ok(mut pos) = world.get::<&mut Pos>(*entity) {
+                let target_x = mouse_world.x + offset.x;
+                let target_y = mouse_world.y + offset.y;
+
+                if is_key_down(KeyCode::LeftShift) {
+                    pos.x = (target_x / 16.0).round() * 16.0;
+                    pos.y = (target_y / 16.0).round() * 16.0;
+                } else {
+                    pos.x = target_x;
+                    pos.y = target_y;
+                }
+            }
+        }
+    }
+
+    if is_mouse_button_released(MouseButton::Left) { *dragging = None; }
+    if is_mouse_button_pressed(MouseButton::Right) {
+        *ctx_world = Some(mouse_world);
+        *ctx_screen = Some(vec2(m_pos.0, m_pos.1));
+    }
+}
 
 #[cfg(debug_assertions)]
 pub fn draw_editor(
@@ -41,10 +132,19 @@ pub fn draw_editor(
                         *ctx_menu_world = None;
                         *ctx_menu_screen = None;
                     }
-                    if ui.button("🟩 Spawn Square").clicked() {
+                    if ui.button("■ Spawn Square").clicked() {
                         let new_ent = world.spawn((
                             Pos { x: world_pos.x, y: world_pos.y },
                             Render::default(), 
+                        ));
+                        *selected_entity = Some(new_ent);
+                        *ctx_menu_world = None;
+                        *ctx_menu_screen = None;
+                    }
+                    if ui.button("⛶ Spawn Tilemap").clicked() {
+                        let new_ent = world.spawn((
+                            Pos { x: world_pos.x, y: world_pos.y },
+                            TileMap::default(), 
                         ));
                         *selected_entity = Some(new_ent);
                         *ctx_menu_world = None;

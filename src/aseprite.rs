@@ -27,7 +27,7 @@ pub struct AseMeta {
 
 #[derive(Deserialize, Debug)]
 pub struct AseTag {
-    //pub name: String,
+    pub name: String,
     pub from: usize,
     pub to: usize,
 }

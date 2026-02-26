@@ -33,7 +33,8 @@ fn main() {
                     .arg(&json_path)
                     .arg("--format")
                     .arg("json-array")
-                    .arg("--list-tags") 
+                    .arg("--list-tags")  
+                    .arg("--list-slices") 
                     .status();
 
                 if let Err(e) = status {

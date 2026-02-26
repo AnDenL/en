@@ -8,7 +8,7 @@ pub fn system(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemFn);
     let name = &input.sig.ident;
     let vis = &input.vis;
-    let body = &input.block;
+    //let body = &input.block;
     
     let wrapper_name = quote::format_ident!("{}_wrapper", name);
 
