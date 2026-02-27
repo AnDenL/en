@@ -23,7 +23,11 @@ crate::define_all_components! {
 
     Player { speed: f32 = 50.0 },
 
-    Collider { w: f32 = PPU, h: f32 = PPU, is_static: bool = true },
+    Collider { 
+        size: [f32; 2] = [PPU, PPU],
+        offset: [f32; 2] = [PPU, PPU],
+        is_static: bool = true 
+    },
     TileMap {
         width: usize = 100,
         height: usize = 100,
