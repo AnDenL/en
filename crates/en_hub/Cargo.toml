@@ -1,0 +1,12 @@
+[package]
+name = "en_hub"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+eframe = "0.33"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+directories = "5.0"
+rfd = "0.14"
+chrono = "0.4"
