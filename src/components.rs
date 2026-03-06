@@ -25,7 +25,7 @@ crate::define_all_components! {
 
     Collider { 
         size: [f32; 2] = [PPU, PPU],
-        offset: [f32; 2] = [PPU, PPU],
+        offset: [f32; 2] = [0.0, 0.0],
         is_static: bool = true 
     },
     TileMap {

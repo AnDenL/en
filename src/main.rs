@@ -9,6 +9,10 @@ mod physics;
 mod aseprite;
 mod systems;
 mod render;
+mod runner;
+mod ast;
+mod compiler;
+mod scenes;
 
 fn window_conf() -> Conf {
     Conf {
@@ -26,15 +30,9 @@ async fn main() {
     let mut sprite_manager = SpriteManager::new();
     sprite_manager.load_all("assets/sprites").await;
 
-    if let Ok(bytes) = macroquad::file::load_file("Scene.bin").await {
-        load_scene(&mut world, &bytes);
-        for (_id, ren) in world.query_mut::<&mut Render>() {
-            ren.cached_sprite = None;
-        }
-        println!("Scene loaded successfully!");
-    } else {
-        println!("Scene.bin not found or failed to load.");
-    }
+    scenes::SceneManager::load_level(&mut world, "Scene").await;
+
+    #[cfg(debug_assertions)] let mut script_watcher = scenes::ScriptWatcher::new("Scene");
 
     let mut is_paused = false;
     let mut camera_zoom = 1.0;
@@ -95,14 +93,23 @@ async fn main() {
         // 5. RENDER UI 
         #[cfg(debug_assertions)]
         {
+            script_watcher.update(&mut world).await;
+
             if is_key_pressed(KeyCode::Tab) { show_editor = !show_editor; }
+            
+            let mut request_load = false;
+
             if show_editor {
                 editor::draw_editor(
                     &mut world, &mut selected_entity, &mut is_paused, 
-                    &mut block_editor_input, &mut ctx_menu_world, 
+                    &mut block_editor_input, &mut request_load, &mut ctx_menu_world, 
                     &mut ctx_menu_screen, &sprite_manager 
                 );
                 egui_macroquad::draw();
+
+                if request_load {
+                    crate::scenes::SceneManager::load_level(&mut world, "Scene").await;
+                }
             }
         }
 

@@ -6,7 +6,7 @@ pub fn update_physics(world: &mut hecs::World, dt: f32) {
         .query::<(&Pos, &Collider)>()
         .iter()
         .map(|(id, (pos, col))| {
-            (id, Rect::new(pos.x - col.w / 2.0, pos.y - col.h / 2.0, col.w, col.h), col.is_static)
+            (id, Rect::new(pos.x - col.size[0] / 2.0 + col.offset[0], pos.y - col.size[1] / 2.0 + col.offset[1], col.size[0], col.size[1]), col.is_static)
         })
         .collect();
 
@@ -20,7 +20,7 @@ pub fn update_physics(world: &mut hecs::World, dt: f32) {
     for (id_a, (pos_a, col_a, vel_a)) in world.query_mut::<(&mut Pos, &Collider, &mut Vel)>() {
         if col_a.is_static { continue; }
 
-        let rect_a = Rect::new(pos_a.x - col_a.w / 2.0, pos_a.y - col_a.h / 2.0, col_a.w, col_a.h);
+        let rect_a = Rect::new(pos_a.x - col_a.size[0] / 2.0 + col_a.offset[0], pos_a.y - col_a.size[1]/ 2.0 + col_a.offset[1], col_a.size[0], col_a.size[1]);
 
         for (id_b, rect_b, _) in &colliders {
             if id_a == *id_b { continue; }

@@ -99,6 +99,7 @@ pub fn draw_editor(
     selected_entity: &mut Option<Entity>, 
     is_paused: &mut bool, 
     block_input: &mut bool,
+    request_load: &mut bool,
     ctx_menu_world: &mut Option<macroquad::math::Vec2>,
     ctx_menu_screen: &mut Option<macroquad::math::Vec2>,
     sprite_manager: &crate::sprite_manager::SpriteManager 
@@ -178,14 +179,7 @@ pub fn draw_editor(
                 ui.add_space(4.0);
 
                 if ui.button("📂 Load").clicked() {
-                    if let Ok(bytes) = std::fs::read("Scene.bin") {
-                        load_scene(world, &bytes); 
-                        *selected_entity = None;
-                        
-                        for (_id, ren) in world.query_mut::<&mut Render>() {
-                            ren.cached_sprite = None;
-                        }
-                    }
+                    *request_load = true;
                 }
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {

@@ -108,7 +108,7 @@ pub fn render_world(
     #[cfg(debug_assertions)]
     if show_editor {
         for (_id, (pos, col)) in world.query_mut::<(&Pos, &Collider)>() {
-            draw_rectangle_lines(pos.x - col.w / 2.0, pos.y - col.h / 2.0, col.w, col.h, 1.0, GREEN);
+            draw_rectangle_lines(pos.x - col.size[0] / 2.0 + col.offset[0], pos.y - col.size[1] / 2.0 + col.offset[1], col.size[0], col.size[1], 1.0, GREEN);
         }
 
         if let Some(entity) = selected {
@@ -117,7 +117,7 @@ pub fn render_world(
                     draw_rectangle_lines(pos.x - ren.w / 2.0 - 2.0, pos.y - ren.h / 2.0 - 2.0, ren.w + 4.0, ren.h + 4.0, 2.0, WHITE);
                 }
                 if let Ok(col) = world.get::<&Collider>(entity) {
-                    draw_rectangle_lines(pos.x - col.w / 2.0, pos.y - col.h / 2.0, col.w, col.h, 2.0, RED);
+                    draw_rectangle_lines(pos.x - col.size[0] / 2.0 + col.offset[0], pos.y - col.size[1] / 2.0 + col.offset[1], col.size[0], col.size[1], 2.0, RED);
                 }
             }
         }

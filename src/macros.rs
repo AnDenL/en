@@ -51,10 +51,11 @@ macro_rules! define_all_components {
         pub fn save_scene(world: &mut hecs::World) -> Vec<u8> {
             let scene = Scene {
                 $(
-                    $name: world.query_mut::<&$name>()
+                    $name: world.query_mut::<(&$name, Option<&crate::ast::SpawnedByScript>)>()
                         .into_iter()
-                        .map(|(entity, comp)| (entity.to_bits().get(), comp.clone()))
-                        .collect() 
+                        .filter(|(_, (_, spawned_by))| spawned_by.is_none())
+                        .map(|(entity, (comp, _))| (entity.to_bits().get(), comp.clone()))
+                        .collect()
                 ),*
             };
             
