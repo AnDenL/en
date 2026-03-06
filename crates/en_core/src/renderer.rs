@@ -1,12 +1,13 @@
 use std::sync::Arc;
-use wgpu::util::DeviceExt;
+use wgpu::{ExperimentalFeatures, util::DeviceExt};
 use winit::window::Window;
+
+use crate::camera::{CameraUniform, Camera2D};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex {
     position: [f32; 3],
-    color: [f32; 4],
 }
 
 impl Vertex {
@@ -14,27 +15,20 @@ impl Vertex {
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                    shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-            ],
+            attributes: &[wgpu::VertexAttribute {
+                offset: 0,
+                shader_location: 0,
+                format: wgpu::VertexFormat::Float32x3,
+            }],
         }
     }
 }
 
 const VERTICES: &[Vertex] = &[
-    Vertex { position: [-0.5,  0.5, 0.0], color: [1.0, 0.0, 0.0, 1.0] }, 
-    Vertex { position: [-0.5, -0.5, 0.0], color: [0.0, 1.0, 0.0, 1.0] },
-    Vertex { position: [ 0.5, -0.5, 0.0], color: [0.0, 0.0, 1.0, 1.0] },
-    Vertex { position: [ 0.5,  0.5, 0.0], color: [1.0, 0.0, 1.0, 1.0] },
+    Vertex { position: [-50.0,  50.0, 0.0] },
+    Vertex { position: [-50.0, -50.0, 0.0] },
+    Vertex { position: [ 50.0, -50.0, 0.0] }, 
+    Vertex { position: [ 50.0,  50.0, 0.0] },
 ];
 
 const INDICES: &[u16] = &[
@@ -53,6 +47,52 @@ pub struct Renderer {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
+    camera_buffer: wgpu::Buffer,
+    camera_bind_group: wgpu::BindGroup,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct InstanceRaw {
+    pub model: [[f32; 4]; 4],
+    pub color: [f32; 4],
+}
+
+impl InstanceRaw {
+    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
+        use std::mem;
+        wgpu::VertexBufferLayout {
+            array_stride: mem::size_of::<InstanceRaw>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Instance,
+            attributes: &[
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 1,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
+                    shader_location: 2,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 8]>() as wgpu::BufferAddress,
+                    shader_location: 3,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 12]>() as wgpu::BufferAddress,
+                    shader_location: 4,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 16]>() as wgpu::BufferAddress,
+                    shader_location: 5,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+            ],
+        }
+    }
 }
 
 impl Renderer {
@@ -81,9 +121,9 @@ impl Renderer {
                     required_features: wgpu::Features::empty(),
                     required_limits: wgpu::Limits::default(),
                     label: Some("EnEngine Device"),
-                    experimental_features: todo!(),
-                    memory_hints: todo!(),
                     trace: wgpu::Trace::Off,
+                    experimental_features: ExperimentalFeatures::disabled(),
+                    memory_hints: wgpu::MemoryHints::Performance,
                 },
             )
             .await
@@ -106,10 +146,44 @@ impl Renderer {
 
         let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
 
+        let mut camera_uniform = CameraUniform::new();
+
+        let default_camera = Camera2D::default();
+        camera_uniform.update_view_proj(&default_camera);
+
+        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Camera Buffer"),
+            contents: bytemuck::cast_slice(&[camera_uniform]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let camera_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+            label: Some("camera_bind_group_layout"),
+        });
+
+        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &camera_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+            label: Some("camera_bind_group"),
+        });
+
         let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[],
-            immediate_size: todo!(),
+            bind_group_layouts: &[&camera_bind_group_layout], // <--- ДОДАЛИ ТУТ
+            immediate_size: 0,
         });
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -118,7 +192,7 @@ impl Renderer {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
-                buffers: &[Vertex::desc()], 
+                buffers: &[Vertex::desc(), InstanceRaw::desc()],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -147,7 +221,7 @@ impl Renderer {
                 alpha_to_coverage_enabled: false,
             },
             cache: None,
-            multiview_mask: todo!(),
+            multiview_mask: None,
         });
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -166,7 +240,7 @@ impl Renderer {
 
         Self {
             surface, device, queue, config, window,
-            render_pipeline, vertex_buffer, index_buffer, num_indices,
+            render_pipeline, vertex_buffer, index_buffer, num_indices, camera_bind_group, camera_buffer
         }
     }
 
@@ -178,7 +252,7 @@ impl Renderer {
         }
     }
 
-    pub fn render(&mut self) -> Result<(), &'static str> {
+    pub fn render(&mut self, instances: &[InstanceRaw]) -> Result<(), &'static str> {
         let output = match self.surface.get_current_texture() {
             Ok(texture) => texture,
             Err(wgpu::SurfaceError::Lost) => {
@@ -198,6 +272,12 @@ impl Renderer {
             label: Some("Render Encoder"),
         });
 
+        let instance_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Instance Buffer"),
+            contents: bytemuck::cast_slice(instances),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
@@ -210,18 +290,22 @@ impl Renderer {
                         }),
                         store: wgpu::StoreOp::Store,
                     },
-                    depth_slice: todo!(),
+                    depth_slice: None,
                 })],
                 depth_stencil_attachment: None,
                 occlusion_query_set: None,
                 timestamp_writes: None,
-                multiview_mask: todo!(),
+                multiview_mask: None,
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_bind_group(0, &self.camera_bind_group, &[]); 
+            
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, instance_buffer.slice(..)); 
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
+            
+            render_pass.draw_indexed(0..self.num_indices, 0, 0..instances.len() as u32);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));

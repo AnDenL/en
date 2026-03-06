@@ -30,7 +30,7 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "En Editor",
         options,
-        Box::new(|_| Box::new(EditorApp::new(project_path))),
+        Box::new(|_| Ok(Box::new(EditorApp::new(project_path)))),
     )
 }
 
@@ -53,7 +53,7 @@ impl eframe::App for EditorApp {
         ctx.set_visuals(visuals);
 
         egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
-            egui::menu::bar(ui, |ui| {
+            egui::MenuBar::new().ui(ui,|ui| {
                 ui.menu_button("File", |ui| {
                     if ui.button("Save Scene").clicked() {}
                     if ui.button("Exit").clicked() {
