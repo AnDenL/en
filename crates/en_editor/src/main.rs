@@ -1,18 +1,54 @@
 use eframe::egui;
+use eframe::egui::FontId;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
 use directories::ProjectDirs;
+use en_ui::theme;
 
-pub mod theme {
-    use eframe::egui::Color32;
-    pub const BG: Color32 = Color32::from_rgb(30, 27, 46); 
-    pub const CARD_BG: Color32 = Color32::from_rgb(42, 38, 64);
-    pub const CARD_HOVER: Color32 = Color32::from_rgb(56, 51, 85);
-    pub const ACCENT: Color32 = Color32::from_rgb(242, 166, 90);
-    pub const ACCENT_BRIGHT: Color32 = Color32::from_rgb(255, 192, 133);
-    pub const TEXT_MAIN: Color32 = Color32::from_rgb(234, 230, 240);
-    pub const TEXT_MUTED: Color32 = Color32::from_rgb(154, 147, 166);
+use crate::inspector::draw_json_inspector;
+
+mod inspector;
+
+fn main() -> eframe::Result<()> {
+    let args: Vec<String> = env::args().collect();
+    let mut config = load_editor_config();
+
+    let project_path = if args.len() > 1 {
+        let path = args[1].clone();
+        config.last_project_path = Some(path.clone());
+        save_editor_config(&config);
+        path
+    } else if let Some(last_path) = config.last_project_path {
+        last_path
+    } else {
+        "No project loaded".to_string()
+    };
+
+    let options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([1920.0, 1080.0])
+            .with_decorations(false)
+            .with_title(format!("En Editor - {}", project_path)),
+        ..Default::default()
+    };
+
+    eframe::run_native(
+        "En Editor",
+        options,
+        Box::new(|cc| {
+            en_ui::theme::setup(&cc.egui_ctx);
+
+            let wgpu_state = cc.wgpu_render_state.as_ref().expect("Eframe must run with WGPU!");
+            let device = std::sync::Arc::new(wgpu_state.device.clone());
+            let queue = std::sync::Arc::new(wgpu_state.queue.clone());
+            let target_format = wgpu_state.target_format;
+
+            let renderer = en_core::renderer::Renderer::new_for_editor(device, queue, target_format);
+
+            Ok(Box::new(EditorApp::new(project_path, renderer)))
+        }),
+    )
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Default)]
@@ -49,44 +85,6 @@ fn save_editor_config(config: &EditorConfig) {
     }
 }
 
-fn main() -> eframe::Result<()> {
-    let args: Vec<String> = env::args().collect();
-    let mut config = load_editor_config();
-
-    let project_path = if args.len() > 1 {
-        let path = args[1].clone();
-        config.last_project_path = Some(path.clone());
-        save_editor_config(&config);
-        path
-    } else if let Some(last_path) = config.last_project_path {
-        last_path
-    } else {
-        "No project loaded".to_string()
-    };
-
-    let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1920.0, 1080.0])
-            .with_title(format!("En Editor - {}", project_path)),
-        ..Default::default()
-    };
-
-    eframe::run_native(
-    "En Editor",
-    options,
-    Box::new(|cc| {
-        let wgpu_state = cc.wgpu_render_state.as_ref().expect("Eframe must run with WGPU!");
-        let device = std::sync::Arc::new(wgpu_state.device.clone());
-        let queue = std::sync::Arc::new(wgpu_state.queue.clone());
-        let target_format = wgpu_state.target_format;
-
-        let renderer = en_core::renderer::Renderer::new_for_editor(device, queue, target_format);
-
-        Ok(Box::new(EditorApp::new(project_path, renderer)))
-    }),
-)
-}
-
 struct EditorApp {
     project_path: String,
     scene_path: String,
@@ -96,6 +94,9 @@ struct EditorApp {
     renderer: en_core::renderer::Renderer,
     viewport_texture: Option<wgpu::Texture>,
     viewport_texture_id: Option<egui::TextureId>,
+
+    current_asset_path: PathBuf,
+    available_components: std::collections::HashMap<String, serde_json::Value>,
 }
 impl EditorApp {
     fn new(project_path: String, renderer: en_core::renderer::Renderer) -> Self {
@@ -111,67 +112,114 @@ impl EditorApp {
 
         let scene = en_core::scene::Scene::load(scene_path.to_str().unwrap())
             .unwrap_or_else(|| en_core::scene::Scene { entities: vec![] });
+        
+        let mut available_components = std::collections::HashMap::new();
+        for template in en_core::inventory::iter::<en_core::ComponentTemplate> {
+            available_components.insert(template.name.to_string(), (template.generator)());
+        }
 
         Self {
-            project_path,
+            project_path: project_path.clone(),
             scene_path: scene_path.to_str().unwrap().to_string(),
-            scene,
+            scene, 
             selected_entity: None,
             renderer, 
             viewport_texture: None,
             viewport_texture_id: None,
+            current_asset_path: PathBuf::from(&project_path),
+            available_components,
         }
     }
 }
 
 impl eframe::App for EditorApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let mut visuals = egui::Visuals::dark();
-        visuals.panel_fill = theme::BG;
-        visuals.widgets.noninteractive.bg_fill = theme::BG;
-        visuals.widgets.noninteractive.fg_stroke.color = theme::TEXT_MAIN;
-        ctx.set_visuals(visuals);
+        egui::TopBottomPanel::top("top_bar").show(ctx, |ui| {
+            ui.add_space(4.0);
 
-        egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
-            egui::MenuBar::new().ui(ui,|ui| {
-                ui.menu_button("File", |ui| {
-                    if ui.button("💾 Save Scene").clicked() {
-                        self.scene.save(&self.scene_path);
-                        println!("Scene saved у: {:?}", self.scene_path);
-                    }
-                    if ui.button("🚪 Exit").clicked() {
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                    }
-                });
-                ui.menu_button("Run", |ui| {
-                    if ui.button("▶ Play Game").clicked() {
-                        std::process::Command::new("cargo")
-                            .arg("run")
-                            .arg("-p")
-                            .arg("en_runner") 
-                            .arg("--")
-                            .arg(&self.project_path) 
-                            .spawn()
-                            .expect("Unable to launch the game");
-                    }
-                });
-            });
+            let header_height = 28.0; 
+            let (header_rect, _) = ui.allocate_exact_size(
+                egui::vec2(ui.available_width(), header_height), 
+                egui::Sense::hover() 
+            );
+
+            let mut left_ui = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(header_rect)
+                    .layout(egui::Layout::left_to_right(egui::Align::Center))
+            );
+            left_ui.add_space(8.0);
+            left_ui.label(egui::RichText::new("💡 En Editor").font(FontId::proportional(16.0)).strong().color(en_ui::theme::ACCENT));
+            left_ui.label(egui::RichText::new("|").color(en_ui::theme::TEXT_MUTED));
+            left_ui.label(egui::RichText::new(&self.project_path).font(FontId::proportional(12.0)).color(en_ui::theme::TEXT_MUTED));
+
+            let mut right_ui = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(header_rect)
+                    .layout(egui::Layout::right_to_left(egui::Align::Center))
+            );
+            right_ui.add_space(8.0);
+            
+            let close_btn = right_ui.add(egui::Button::new(egui::RichText::new("❌").size(14.0)).fill(egui::Color32::TRANSPARENT));
+            let max_btn = right_ui.add(egui::Button::new(egui::RichText::new("🗖").size(14.0)).fill(egui::Color32::TRANSPARENT));
+            let min_btn = right_ui.add(egui::Button::new(egui::RichText::new("—").size(14.0)).fill(egui::Color32::TRANSPARENT));
+
+            if close_btn.clicked() { ctx.send_viewport_cmd(egui::ViewportCommand::Close); }
+            if max_btn.clicked() {
+                let is_maximized = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
+                ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_maximized));
+            }
+            if min_btn.clicked() { ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true)); }
+
+            let mut center_ui = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(header_rect)
+                    .layout(egui::Layout::top_down(egui::Align::Center))
+            );
+            center_ui.add_space((header_height - 22.0) / 2.0); 
+            
+            let play_btn = center_ui.button("▶ Play Game");
+            if play_btn.clicked() {
+                std::process::Command::new("cargo")
+                    .arg("run")
+                    .arg("-p")
+                    .arg("en_runner") 
+                    .arg("--")
+                    .arg(&self.project_path) 
+                    .spawn()
+                    .expect("Unable to launch the game");
+            }
+
+            let any_btn_hovered = close_btn.hovered() || max_btn.hovered() || min_btn.hovered() || play_btn.hovered();
+            
+            if ui.rect_contains_pointer(header_rect) && !any_btn_hovered {
+                if ctx.input(|i| i.pointer.primary_down()) {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
+                }
+            }
+
+            ui.add_space(4.0);
         });
 
         egui::SidePanel::left("scene_tree_panel")
             .resizable(true)
             .default_width(250.0)
             .show(ctx, |ui| {
-                ui.heading(egui::RichText::new("Scene").color(theme::ACCENT));
+                ui.horizontal(|ui| {
+                    ui.heading(egui::RichText::new("Scene").color(en_ui::theme::ACCENT));
+                    
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.button("💾 Save").clicked() {
+                            self.scene.save(&self.scene_path);
+                            println!("Scene saved у: {:?}", self.scene_path);
+                        }
+                    });
+                });
                 ui.separator();
-
                 if ui.button("➕ Add Entity").clicked() {
                     let mut components = std::collections::HashMap::new();
                     components.insert("Transform".to_string(), serde_json::json!({
                         "x": 0.0, "y": 0.0, "rotation": 0.0
-                    }));
-                    components.insert("Sprite".to_string(), serde_json::json!({
-                        "color": [1.0, 1.0, 1.0, 1.0]
                     }));
 
                     let new_entity = en_core::scene::EntityData {
@@ -208,15 +256,44 @@ impl eframe::App for EditorApp {
                             ui.label(egui::RichText::new("Name:").color(theme::TEXT_MAIN));
                             ui.text_edit_singleline(&mut entity.name);
                         });
-
                         ui.add_space(10.0);
+
+                        let mut comp_to_remove = None;
 
                         for (comp_name, comp_value) in entity.components.iter_mut() {
                             ui.group(|ui| {
+                                ui.horizontal(|ui| {
+                                    ui.label(egui::RichText::new(comp_name).strong().color(theme::ACCENT_BRIGHT));
+                                    
+                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                        if ui.button(egui::RichText::new("🗑").color(egui::Color32::RED)).clicked() {
+                                            comp_to_remove = Some(comp_name.clone());
+                                        }
+                                    });
+                                });
+                                ui.separator();
+                                
                                 draw_json_inspector(ui, comp_name, comp_value);
                             });
                             ui.add_space(5.0);
                         }
+
+                        if let Some(name) = comp_to_remove {
+                            entity.components.remove(&name);
+                        }
+
+                        ui.add_space(10.0);
+
+                        ui.menu_button("➕ Add Component", |ui| {
+                            for (name, template) in &self.available_components {
+                                if !entity.components.contains_key(name) {
+                                    if ui.button(name).clicked() {
+                                        entity.components.insert(name.clone(), template.clone());
+                                        ui.close();
+                                    }
+                                }
+                            }
+                        });
                     }
                 } else {
                     ui.label(egui::RichText::new("No entity selected").color(theme::TEXT_MUTED));
@@ -226,10 +303,67 @@ impl eframe::App for EditorApp {
         egui::TopBottomPanel::bottom("bottom_panel")
             .resizable(true)
             .default_height(200.0)
+            .min_height(100.0) 
             .show(ctx, |ui| {
-                ui.heading(egui::RichText::new("Assets").color(theme::ACCENT));
+                ui.horizontal(|ui| {
+                    ui.heading(egui::RichText::new("Assets").color(en_ui::theme::ACCENT));
+                    ui.add_space(10.0);
+
+                    let is_root = self.current_asset_path == std::path::Path::new(&self.project_path);
+                    
+                    if !is_root {
+                        if ui.button("⬆ Up").clicked() {
+                            if let Some(parent) = self.current_asset_path.parent() {
+                                self.current_asset_path = parent.to_path_buf();
+                            }
+                        }
+                    }
+
+                    let display_path = if is_root {
+                        "res://".to_string()
+                    } else {
+                        if let Ok(rel) = self.current_asset_path.strip_prefix(&self.project_path) {
+                            format!("res://{}", rel.display())
+                        } else {
+                            self.current_asset_path.display().to_string()
+                        }
+                    };
+                    ui.label(egui::RichText::new(display_path).color(en_ui::theme::TEXT_MUTED));
+                });
+                
                 ui.separator();
-                ui.label(egui::RichText::new("res://").color(theme::TEXT_MUTED));
+                
+                egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        if let Ok(entries) = std::fs::read_dir(&self.current_asset_path) {
+                            let mut entries: Vec<_> = entries.flatten().collect();
+                            entries.sort_by_key(|e| (!e.path().is_dir(), e.file_name()));
+
+                            for entry in entries {
+                                let path = entry.path();
+                                let file_name = path.file_name().unwrap_or_default().to_string_lossy();
+                                
+                                let (icon, color) = if path.is_dir() {
+                                    ("📁", en_ui::theme::ACCENT)
+                                } else {
+                                    ("📄", en_ui::theme::TEXT_MAIN)
+                                };
+
+                                let file_btn = ui.add(
+                                    egui::Button::new(
+                                        egui::RichText::new(format!("{} {}", icon, file_name)).color(color)
+                                    ).fill(en_ui::theme::CARD_BG)
+                                );
+
+                                if file_btn.double_clicked() && path.is_dir() {
+                                    self.current_asset_path = path;
+                                }
+                            }
+                        } else {
+                            ui.label(egui::RichText::new("Directory reading error").color(egui::Color32::RED));
+                        }
+                    });
+                });
             });
 
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -243,6 +377,10 @@ impl eframe::App for EditorApp {
 
             if needs_recreate {
                 let wgpu_state = _frame.wgpu_render_state().expect("WGPU is not enabled in eframe!");
+                
+                if let Some(old_id) = self.viewport_texture_id {
+                    wgpu_state.renderer.write().free_texture(&old_id);
+                }
                 
                 let texture = self.renderer.device.create_texture(&wgpu::TextureDescriptor {
                     label: Some("Viewport Texture"),
@@ -264,6 +402,8 @@ impl eframe::App for EditorApp {
                 );
 
                 self.renderer.camera.update_aspect_ratio(width as f32, height as f32);
+    
+                self.renderer.update_camera_buffer();
 
                 self.viewport_texture = Some(texture);
                 self.viewport_texture_id = Some(id);
@@ -345,79 +485,3 @@ impl eframe::App for EditorApp {
     }
 }
 
-fn draw_json_inspector(ui: &mut egui::Ui, name: &str, value: &mut serde_json::Value) -> bool {
-    let mut changed = false;
-
-    match value {
-        serde_json::Value::Object(map) => {
-            ui.collapsing(egui::RichText::new(name).strong(), |ui| {
-                for (k, v) in map.iter_mut() {
-                    if draw_json_inspector(ui, k, v) {
-                        changed = true;
-                    }
-                }
-            });
-        }
-        serde_json::Value::Array(arr) => {
-            if arr.len() == 4 && arr.iter().all(|v| v.is_number()) {
-                ui.horizontal(|ui| {
-                    ui.label(name);
-                    let r = arr[0].as_f64().unwrap_or(1.0) as f32;
-                    let g = arr[1].as_f64().unwrap_or(1.0) as f32;
-                    let b = arr[2].as_f64().unwrap_or(1.0) as f32;
-                    let a = arr[3].as_f64().unwrap_or(1.0) as f32;
-                    
-                    let mut color = egui::Color32::from_rgba_unmultiplied(
-                        (r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8, (a * 255.0) as u8
-                    );
-                    
-                    if ui.color_edit_button_srgba(&mut color).changed() {
-                        arr[0] = serde_json::json!(color.r() as f32 / 255.0);
-                        arr[1] = serde_json::json!(color.g() as f32 / 255.0);
-                        arr[2] = serde_json::json!(color.b() as f32 / 255.0);
-                        arr[3] = serde_json::json!(color.a() as f32 / 255.0);
-                        changed = true;
-                    }
-                });
-            } else {
-                ui.collapsing(name, |ui| {
-                    for (i, v) in arr.iter_mut().enumerate() {
-                        if draw_json_inspector(ui, &format!("[{}]", i), v) { changed = true; }
-                    }
-                });
-            }
-        }
-        serde_json::Value::Number(num) => {
-            ui.horizontal(|ui| {
-                ui.label(name);
-                if let Some(val) = num.as_f64() {
-                    let mut f = val;
-                    if ui.add(egui::DragValue::new(&mut f).speed(0.1)).changed() {
-                        if num.is_i64() || num.is_u64() {
-                            *num = serde_json::Number::from(f as i64);
-                        } else {
-                            *num = serde_json::Number::from_f64(f).unwrap();
-                        }
-                        changed = true;
-                    }
-                }
-            });
-        }
-        serde_json::Value::String(s) => {
-            ui.horizontal(|ui| {
-                ui.label(name);
-                if ui.text_edit_singleline(s).changed() { changed = true; }
-            });
-        }
-        serde_json::Value::Bool(b) => {
-            ui.horizontal(|ui| {
-                ui.label(name);
-                if ui.checkbox(b, "").changed() { changed = true; }
-            });
-        }
-        serde_json::Value::Null => {
-            ui.horizontal(|ui| { ui.label(name); ui.label("null"); });
-        }
-    }
-    changed
-}

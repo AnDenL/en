@@ -14,3 +14,4 @@ serde_json = "1.0"
 directories = "5.0"
 
 en_core = { path = "../en_core" }
+en_ui = { path = "../en_ui" }

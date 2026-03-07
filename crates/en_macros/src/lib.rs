@@ -1,7 +1,7 @@
 extern crate proc_macro;
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, ItemFn};
+use syn::{ItemFn, ItemStruct, parse_macro_input};
 
 #[proc_macro_attribute]
 pub fn en_system(_attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -51,6 +51,27 @@ pub fn include_scripts(_input: TokenStream) -> TokenStream {
     } else {
         return TokenStream::from(quote! {});
     }
+
+    TokenStream::from(expanded)
+}
+
+#[proc_macro_attribute]
+pub fn en_component(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let input_struct = parse_macro_input!(item as ItemStruct);
+    let name = &input_struct.ident;
+    let name_str = name.to_string();
+
+    let expanded = quote! {
+        #[derive(bevy_ecs::prelude::Component, serde::Serialize, serde::Deserialize, Clone, Debug)]
+        #input_struct
+
+        inventory::submit! {
+            ::en_core::ComponentTemplate {
+                name: #name_str,
+                generator: || serde_json::to_value(#name::default()).unwrap(),
+            }
+        }
+    };
 
     TokenStream::from(expanded)
 }

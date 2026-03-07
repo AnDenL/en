@@ -1,14 +1,23 @@
-use bevy_ecs::prelude::*;
-use serde::{Serialize, Deserialize};
+use en_macros::en_component;
 
-#[derive(Serialize, Deserialize, Clone, Debug, Component)]
+#[en_component]
 pub struct Transform {
     pub x: f32,
     pub y: f32,
     pub rotation: f32,
 }
+impl Default for Transform {
+    fn default() -> Self {
+        Self { x: 0.0, y: 0.0, rotation: 0.0 }
+    }
+}
 
-#[derive(Serialize, Deserialize, Clone, Debug, Component)]
+#[en_component]
 pub struct Sprite {
     pub color: [f32; 4],
+}
+impl Default for Sprite {
+    fn default() -> Self {
+        Self { color: [0.0,0.0,0.0,0.0] }
+    }
 }

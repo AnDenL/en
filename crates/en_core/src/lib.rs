@@ -7,16 +7,25 @@ pub mod input;
 pub mod scene;
 
 pub use engine::EnEngine;
-pub use en_macros::en_system;
+pub use en_macros::{en_system, en_component};
 pub use inventory;
 pub use bevy_ecs;
 pub use en_macros::include_scripts;
+
+#[doc(hidden)]
+extern crate self as en_core;
+
+pub struct ComponentTemplate {
+    pub name: &'static str,
+    pub generator: fn() -> serde_json::Value,
+}
 
 pub struct SystemRegister {
     pub name: &'static str,
     pub register: fn(&mut bevy_ecs::schedule::Schedule),
 }
 
+inventory::collect!(ComponentTemplate);
 inventory::collect!(SystemRegister);
 
 pub mod prelude {

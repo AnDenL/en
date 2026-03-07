@@ -3,29 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use directories::ProjectDirs;
 use chrono::Local;
-use std::sync::Arc;
-
-pub mod theme {
-    use eframe::egui::Color32;
-
-    pub const BG: Color32 = Color32::from_rgb(30, 27, 46); 
-    pub const CARD_BG: Color32 = Color32::from_rgb(42, 38, 64);
-    pub const CARD_HOVER: Color32 = Color32::from_rgb(56, 51, 85);
-    
-    pub const ACCENT: Color32 = Color32::from_rgb(242, 166, 90);
-    pub const ACCENT_BRIGHT: Color32 = Color32::from_rgb(255, 192, 133);
-    
-    pub const TEXT_MAIN: Color32 = Color32::from_rgb(234, 230, 240);
-    pub const TEXT_MUTED: Color32 = Color32::from_rgb(154, 147, 166);
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Clone)]
-struct ProjectRecord {
-    name: String,
-    path: String,
-    created_at: String,
-    is_favorite: bool,
-}
+use en_ui::theme;
 
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
@@ -41,11 +19,19 @@ fn main() -> eframe::Result<()> {
         "En Hub",
         options,
         Box::new(|cc| {
-            setup_custom_fonts(&cc.egui_ctx);
-            configure_styles(&cc.egui_ctx);
+            en_ui::theme::setup(&cc.egui_ctx);
             Ok(Box::new(HubApp::new()))
         }),
     )
+}
+
+
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+struct ProjectRecord {
+    name: String,
+    path: String,
+    created_at: String,
+    is_favorite: bool,
 }
 
 struct HubApp {
@@ -289,41 +275,4 @@ fn save_projects(projects: &[ProjectRecord]) {
     if let Ok(data) = serde_json::to_string_pretty(projects) {
         let _ = fs::write(path, data);
     }
-}
-
-fn setup_custom_fonts(ctx: &egui::Context) {
-    let mut fonts = egui::FontDefinitions::default();
-    
-    fonts.font_data.insert(
-        "my_font".to_owned(),
-        Arc::new(egui::FontData::from_static(include_bytes!("../gui/Nunito-Medium.ttf"))),
-    );
-
-    fonts.families.entry(egui::FontFamily::Proportional).or_default().insert(0, "my_font".to_owned());
-    fonts.families.entry(egui::FontFamily::Monospace).or_default().insert(0, "my_font".to_owned());
-
-    ctx.set_fonts(fonts);
-}
-
-fn configure_styles(ctx: &egui::Context) {
-    let mut visuals = egui::Visuals::dark();
-    
-    visuals.panel_fill = theme::BG;
-    visuals.window_fill = theme::CARD_BG;
-    
-    visuals.widgets.inactive.weak_bg_fill = theme::CARD_BG;
-    visuals.widgets.inactive.bg_fill = theme::CARD_BG;
-    visuals.widgets.inactive.fg_stroke = egui::Stroke::new(1.0, theme::TEXT_MAIN);
-    
-    visuals.widgets.hovered.weak_bg_fill = theme::CARD_HOVER;
-    visuals.widgets.hovered.bg_fill = theme::CARD_HOVER;
-    visuals.widgets.hovered.fg_stroke = egui::Stroke::new(1.5, theme::ACCENT);
-    
-    visuals.widgets.active.weak_bg_fill = theme::ACCENT;
-    visuals.widgets.active.bg_fill = theme::ACCENT;
-    visuals.widgets.active.fg_stroke = egui::Stroke::new(2.0, egui::Color32::WHITE);
-
-    visuals.selection.bg_fill = theme::ACCENT.linear_multiply(0.5);
-    
-    ctx.set_visuals(visuals);
 }
