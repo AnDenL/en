@@ -1,0 +1,56 @@
+extern crate proc_macro;
+use proc_macro::TokenStream;
+use quote::quote;
+use syn::{parse_macro_input, ItemFn};
+
+#[proc_macro_attribute]
+pub fn en_system(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as ItemFn);
+    let name = &input.sig.ident;
+    let vis = &input.vis;
+
+    let register_name = quote::format_ident!("__en_register_{}", name);
+
+    let expanded = quote! {
+        #input
+
+        #[doc(hidden)]
+        #vis fn #register_name(schedule: &mut en_core::bevy_ecs::schedule::Schedule) {
+            schedule.add_systems(#name);
+        }
+
+        en_core::inventory::submit! {
+            en_core::SystemRegister {
+                name: stringify!(#name),
+                register: #register_name,
+            }
+        }
+    };
+
+    TokenStream::from(expanded)
+}
+
+#[proc_macro]
+pub fn include_scripts(_input: TokenStream) -> TokenStream {
+    let mut expanded = quote! {};
+    
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    
+    let scripts_path = std::path::Path::new(&manifest_dir).join("src").join("scripts");
+    
+    if let Ok(entries) = std::fs::read_dir(&scripts_path) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().map_or(false, |ext| ext == "rs") {
+                let path_str = path.to_str().unwrap();
+                expanded.extend(quote! {
+                    include!(#path_str);
+                });
+            }
+        }
+    } else {
+        return TokenStream::from(quote! {});
+    }
+
+    TokenStream::from(expanded)
+}
