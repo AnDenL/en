@@ -6,18 +6,16 @@ pub struct Transform {
     pub y: f32,
     pub rotation: f32,
 }
-impl Default for Transform {
-    fn default() -> Self {
-        Self { x: 0.0, y: 0.0, rotation: 0.0 }
-    }
+
+#[en_component]
+pub struct Vel {
+    pub x: f32,
+    pub y: f32,
+    pub inertia: f32,
 }
 
 #[en_component]
 pub struct Sprite {
+    #[default([1.0, 1.0, 1.0, 1.0])]
     pub color: [f32; 4],
-}
-impl Default for Sprite {
-    fn default() -> Self {
-        Self { color: [0.0,0.0,0.0,0.0] }
-    }
 }

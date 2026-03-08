@@ -1,0 +1,43 @@
+{
+  "entities": [
+    {
+      "name": "Entity 0",
+      "components": {
+        "Transform": {
+          "rotation": 0.0,
+          "x": 0.0,
+          "y": 0.0
+        },
+        "Sprite": {
+          "color": [
+            1.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        }
+      }
+    },
+    {
+      "name": "Entity 1",
+      "components": {
+        "Transform": {
+          "rotation": 0.0,
+          "x": 24.5,
+          "y": 101.0
+        },
+        "Player": {
+          "speed": 400.0
+        },
+        "Sprite": {
+          "color": [
+            0.0,
+            1.0,
+            0.7098039388656616,
+            1.0
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -19,10 +19,11 @@ pub struct EnEngine {
     pub renderer: Renderer,
     pub world: World,
     pub schedule: Schedule,
+    pub inserters: std::collections::HashMap<String, fn(&mut bevy_ecs::world::EntityWorldMut, serde_json::Value)>,
 }
 
 impl EnEngine {
-    pub fn new(window: Arc<Window>) -> Self {
+    pub fn new(window: Arc<Window>, plugin_registry: crate::PluginRegistry) -> Self {
         let renderer = pollster::block_on(Renderer::new(window));
         let mut world = World::new();
 
@@ -30,13 +31,28 @@ impl EnEngine {
         world.insert_resource(crate::input::Input::default());
 
         let mut schedule = Schedule::default();
+        let mut inserters = std::collections::HashMap::new();
+
+        for template in inventory::iter::<crate::ComponentTemplate> {
+            inserters.insert(template.name.to_string(), template.inserter);
+        }
+
+        for template in plugin_registry.components {
+            inserters.insert(template.name.to_string(), template.inserter);
+            println!("[EnEngine] Registered plugin component: {}", template.name);
+        }
 
         for sys in inventory::iter::<crate::SystemRegister> {
             (sys.register)(&mut schedule);
-            println!("[EnEngine] Auto-registered system: {}", sys.name);
+            println!("[EnEngine] Auto-registered core system: {}", sys.name);
         }
 
-        Self { renderer, world, schedule }
+        for sys in plugin_registry.systems {
+            (sys.register)(&mut schedule);
+            println!("[EnEngine] Registered plugin system: {}", sys.name);
+        }
+
+        Self { renderer, world, schedule, inserters }
     }
 
     pub fn init_project(&mut self, project_path: &str) {
@@ -49,7 +65,7 @@ impl EnEngine {
             let scene_path = std::path::Path::new(project_path).join(entry_scene);
             self.load_scene(scene_path.to_str().unwrap());
         } else {
-            eprintln!("[EnEngine] Not found en_project.json у {}", project_path);
+            eprintln!("[EnEngine] Not found en_project.json {}", project_path);
         }
     }
 
@@ -94,18 +110,13 @@ impl EnEngine {
             for entity_data in scene.entities {
                 let mut entity = self.world.spawn_empty();
                 
-                if let Some(val) = entity_data.components.get("Transform") {
-                    if let Ok(c) = serde_json::from_value::<Transform>(val.clone()) {
-                        entity.insert(c);
+                for (comp_name, comp_value) in entity_data.components {
+                    if let Some(inserter) = self.inserters.get(comp_name.as_str()) {
+                        inserter(&mut entity, comp_value);
+                    } else {
+                        eprintln!("[EnEngine Warning] Unknown component: {}", comp_name);
                     }
                 }
-                if let Some(val) = entity_data.components.get("Sprite") {
-                    if let Ok(c) = serde_json::from_value::<Sprite>(val.clone()) {
-                        entity.insert(c);
-                    }
-                }
-                
-                println!("[EnEngine] Spawned entity: {}", entity_data.name);
             }
         }
     }
@@ -114,6 +125,7 @@ impl EnEngine {
 struct EngineApp {
     engine: Option<EnEngine>,
     project_path: String,
+    plugin_registry: Option<crate::PluginRegistry>,
 }
 
 impl ApplicationHandler for EngineApp {
@@ -124,7 +136,13 @@ impl ApplicationHandler for EngineApp {
                 .with_transparent(true);
                 
             let window = Arc::new(event_loop.create_window(window_attr).unwrap());
-            let mut engine = EnEngine::new(window);
+            
+            let registry = self.plugin_registry.take().unwrap_or(crate::PluginRegistry {
+                components: vec![],
+                systems: vec![],
+            });
+
+            let mut engine = EnEngine::new(window, registry);
             
             engine.init_project(&self.project_path);
             self.engine = Some(engine);
@@ -174,7 +192,7 @@ impl ApplicationHandler for EngineApp {
     }
 }
 
-pub fn run(project_path: String) {
+pub fn run(project_path: String, plugin_registry: crate::PluginRegistry) {
     let event_loop = EventLoop::new().unwrap();
     
     event_loop.set_control_flow(ControlFlow::Poll); 
@@ -182,6 +200,7 @@ pub fn run(project_path: String) {
     let mut app = EngineApp {
         engine: None,
         project_path,
+        plugin_registry: Some(plugin_registry),
     };
     
     event_loop.run_app(&mut app).unwrap();

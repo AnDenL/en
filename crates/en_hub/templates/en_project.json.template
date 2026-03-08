@@ -1,0 +1,5 @@
+{
+  "engine_version": "{engine_version}",
+  "entry_scene": "main.scene",
+  "project_name": "{project_name}"
+}

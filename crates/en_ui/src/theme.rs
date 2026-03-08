@@ -9,6 +9,10 @@ pub const ACCENT_BRIGHT: Color32 = Color32::from_rgb(255, 192, 133);
 pub const TEXT_MAIN: Color32 = Color32::from_rgb(234, 230, 240);
 pub const TEXT_MUTED: Color32 = Color32::from_rgb(154, 147, 166);
 
+pub const ERROR: Color32 = Color32::from_rgb(235, 77, 77);
+pub const WARNING: Color32 = Color32::from_rgb(242, 201, 76);
+pub const SUCCESS: Color32 = Color32::from_rgb(111, 207, 151);
+
 pub fn setup_custom_fonts(ctx: &Context) {
     let mut fonts = FontDefinitions::default();
     

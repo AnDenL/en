@@ -20,10 +20,20 @@ impl Scene {
     }
 
     pub fn load(path: &str) -> Option<Self> {
-        if let Ok(data) = fs::read_to_string(path) {
-            serde_json::from_str(&data).ok()
-        } else {
-            None
+        match fs::read_to_string(path) {
+            Ok(data) => {
+                match serde_json::from_str(&data) {
+                    Ok(scene) => Some(scene),
+                    Err(e) => {
+                        eprintln!("[Scene Error] Failed to parse JSON in '{}': {}", path, e);
+                        None
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("[Scene Error] Could not read file '{}': {}", path, e);
+                None
+            }
         }
     }
 }

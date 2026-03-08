@@ -62,14 +62,49 @@ pub fn en_component(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let name_str = name.to_string();
 
     let expanded = quote! {
-        #[derive(bevy_ecs::prelude::Component, serde::Serialize, serde::Deserialize, Clone, Debug)]
+        #[derive(bevy_ecs::prelude::Component, serde::Serialize, serde::Deserialize, Clone, Debug, smart_default::SmartDefault)]
         #input_struct
 
         inventory::submit! {
             ::en_core::ComponentTemplate {
                 name: #name_str,
                 generator: || serde_json::to_value(#name::default()).unwrap(),
+                
+                inserter: |entity_mut, value| {
+                    if let Ok(component) = serde_json::from_value::<#name>(value) {
+                        entity_mut.insert(component);
+                    } else {
+                        eprintln!("[EnEngine] Failed to deserialize component: {}", #name_str);
+                    }
+                }
             }
+        }
+    };
+
+    TokenStream::from(expanded)
+}
+
+#[proc_macro]
+pub fn export_plugin(_input: TokenStream) -> TokenStream {
+    let expanded = quote! {
+        #[unsafe(no_mangle)]
+        pub extern "C" fn en_get_plugin_registry() -> *mut ::en_core::PluginRegistry {
+            let mut components = Vec::new();
+            for template in ::en_core::inventory::iter::<::en_core::ComponentTemplate> {
+                components.push(template.clone());
+            }
+
+            let mut systems = Vec::new();
+            for sys in ::en_core::inventory::iter::<::en_core::SystemRegister> {
+                systems.push(sys.clone());
+            }
+
+            let registry = Box::new(::en_core::PluginRegistry {
+                components,
+                systems,
+            });
+
+            Box::into_raw(registry)
         }
     };
 
