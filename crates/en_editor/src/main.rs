@@ -129,7 +129,10 @@ impl EditorApp {
 
         let scene_path = std::path::Path::new(&project_path).join(&entry_scene);
 
-        let scene = en_core::scene::Scene::load(scene_path.to_str().unwrap())
+        let loader = en_core::assets::AssetLoader::new("assets/");
+        let scene_path_str = scene_path.to_str().unwrap();
+
+        let scene = pollster::block_on(en_core::scene::Scene::load(&loader, scene_path_str))
             .unwrap_or_else(|| en_core::scene::Scene { entities: vec![] });
         
         let mut available_components = std::collections::HashMap::new();

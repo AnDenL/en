@@ -14,6 +14,7 @@ use crate::renderer::{Renderer, InstanceRaw};
 use crate::time::Time;
 use crate::input::Input;
 use crate::scene::Scene;
+use crate::assets::AssetLoader;
 
 pub struct EnEngine {
     pub renderer: Renderer,
@@ -106,20 +107,46 @@ impl EnEngine {
     }
 
     pub fn load_scene(&mut self, path: &str) {
-        if let Some(scene) = Scene::load(path) {
-            for entity_data in scene.entities {
-                let mut entity = self.world.spawn_empty();
-                
-                for (comp_name, comp_value) in entity_data.components {
-                    if let Some(inserter) = self.inserters.get(comp_name.as_str()) {
-                        inserter(&mut entity, comp_value);
-                    } else {
-                        eprintln!("[EnEngine Warning] Unknown component: {}", comp_name);
-                    }
+        let path_clone = path.to_string();
+        let loader = AssetLoader::new("assets/");
+        
+        let (tx, rx) = std::sync::mpsc::channel();
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            wasm_bindgen_futures::spawn_local(async move {
+                if let Some(scene) = Scene::load(&loader, &path_clone).await {
+                    let _ = tx.send(scene);
+                }
+            });
+        }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let scene = pollster::block_on(Scene::load(&loader, &path_clone));
+            if let Some(s) = scene { let _ = tx.send(s); }
+        }
+
+        if let Ok(scene) = rx.try_recv() {
+            self.apply_scene(Some(scene));
+        }
+    }
+
+    fn apply_scene(&mut self, scene: Option<Scene>) {
+    if let Some(scene) = scene {
+        for entity_data in scene.entities {
+            let mut entity = self.world.spawn_empty();
+            
+            for (comp_name, comp_value) in entity_data.components {
+                if let Some(inserter) = self.inserters.get(comp_name.as_str()) {
+                    (inserter)(&mut entity, comp_value);
+                } else {
+                    eprintln!("[EnEngine Warning] Unknown component: {}", comp_name);
                 }
             }
         }
     }
+}
 }
 
 struct EngineApp {

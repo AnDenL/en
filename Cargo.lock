@@ -1328,10 +1328,14 @@ dependencies = [
  "en_macros",
  "glam 0.29.3",
  "inventory",
+ "js-sys",
  "pollster 0.3.0",
  "serde",
  "serde_json",
  "smart-default",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
  "wgpu",
  "winit",
 ]
@@ -1347,6 +1351,7 @@ dependencies = [
  "en_ui",
  "glam 0.29.3",
  "libloading",
+ "pollster 0.3.0",
  "serde",
  "serde_json",
  "wgpu",
@@ -1379,13 +1384,9 @@ dependencies = [
 name = "en_runner"
 version = "0.1.0"
 dependencies = [
- "bevy_ecs",
  "en_core",
  "env_logger",
- "inventory",
  "serde",
- "serde_json",
- "smart-default",
 ]
 
 [[package]]

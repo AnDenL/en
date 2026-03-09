@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 
+use crate::assets::AssetLoader;
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct EntityData {
     pub name: String,
@@ -19,19 +21,21 @@ impl Scene {
         fs::write(path, json).expect("Failed to write scene file");
     }
 
-    pub fn load(path: &str) -> Option<Self> {
-        match fs::read_to_string(path) {
+    pub async fn load(loader: &AssetLoader, path: &str) -> Option<Self> {
+        let scene_json = loader.load_string(path).await;
+
+        match scene_json {
             Ok(data) => {
                 match serde_json::from_str(&data) {
                     Ok(scene) => Some(scene),
                     Err(e) => {
-                        eprintln!("[Scene Error] Failed to parse JSON in '{}': {}", path, e);
+                        eprintln!("[Scene Error] JSON parse error in '{}': {}", path, e);
                         None
                     }
                 }
             }
             Err(e) => {
-                eprintln!("[Scene Error] Could not read file '{}': {}", path, e);
+                eprintln!("[Scene Error] Could not load '{}': {}", path, e);
                 None
             }
         }
