@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Receiver;
 
-use crate::inspector::draw_json_inspector;
+use crate::inspector::draw_typed_inspector;
 
 mod inspector;
 
@@ -101,6 +101,7 @@ struct EditorApp {
 
     current_asset_path: PathBuf,
     available_components: std::collections::HashMap<String, serde_json::Value>,
+    component_schemas: std::collections::HashMap<String, serde_json::Value>,
     active_tab: BottomTab,
     logs: Arc<Mutex<Vec<String>>>,
     game_process: Option<std::process::Child>,
@@ -119,7 +120,13 @@ enum BottomTab {
 
 impl EditorApp {
     fn new(project_path: String, renderer: en_core::renderer::Renderer) -> Self {
-        let project_file = std::path::Path::new(&project_path).join("project.json");
+        let project_file = std::path::Path::new(&project_path).join("en_project.json");
+        let project_json: serde_json::Value = if let Ok(data) = std::fs::read_to_string(&project_file) {
+            serde_json::from_str(&data).unwrap_or_default()
+        } else {
+            serde_json::json!({})
+        };
+
         let entry_scene = if let Ok(data) = std::fs::read_to_string(&project_file) {
             let json: serde_json::Value = serde_json::from_str(&data).unwrap_or_default();
             json["entry_scene"].as_str().unwrap_or("main.scene").to_string()
@@ -127,22 +134,34 @@ impl EditorApp {
             "main.scene".to_string()
         };
 
+        let loader_path = format!("{}/", project_path);
+        let loader = en_core::assets::AssetLoader::new(&loader_path);
+
+        let scene = pollster::block_on(en_core::scene::Scene::load(&loader, &entry_scene))
+            .unwrap_or_else(|| {
+                println!("[Editor error] Can't load scene {}", entry_scene);
+                en_core::scene::Scene { entities: vec![] }
+            });
+
         let scene_path = std::path::Path::new(&project_path).join(&entry_scene);
-
-        let loader = en_core::assets::AssetLoader::new("assets/");
-        let scene_path_str = scene_path.to_str().unwrap();
-
-        let scene = pollster::block_on(en_core::scene::Scene::load(&loader, scene_path_str))
-            .unwrap_or_else(|| en_core::scene::Scene { entities: vec![] });
         
         let mut available_components = std::collections::HashMap::new();
+        let mut component_schemas = std::collections::HashMap::new();
         for template in en_core::inventory::iter::<en_core::ComponentTemplate> {
             available_components.insert(template.name.to_string(), (template.generator)());
+            component_schemas.insert(template.name.to_string(), (template.schema)());
         }
 
-        let lib_path = format!("{}/target/debug/deps/liben_runner.so", project_path);
+        let project_name = project_json["project_name"]
+            .as_str()
+            .unwrap_or("game")
+            .to_lowercase()
+            .replace("-", "_")
+            .replace(" ", "_");
+
+        let lib_path = format!("{}/target/debug/deps/lib{}.so", project_path, project_name);
         unsafe {
-            if let Ok(lib) = libloading::Library::new(lib_path) {
+            if let Ok(lib) = libloading::Library::new(lib_path.clone()) {
                 let func: Result<libloading::Symbol<unsafe extern "C" fn() -> *mut en_core::PluginRegistry>, _> = 
                     lib.get(b"en_get_plugin_registry");
                     
@@ -156,7 +175,7 @@ impl EditorApp {
                 }
                 std::mem::forget(lib); 
             } else {
-                println!("⚠ Can't load DLL");
+                println!("⚠ Can't load DLL {}", lib_path);
             }
         }
 
@@ -170,6 +189,7 @@ impl EditorApp {
             viewport_texture_id: None,
             current_asset_path: PathBuf::from(&project_path),
             available_components,
+            component_schemas,
             logs: Arc::new(Mutex::new(Vec::new())),
             active_tab: BottomTab::Assets,
             game_process: None,
@@ -593,7 +613,7 @@ impl eframe::App for EditorApp {
                                 });
                                 ui.separator();
                                 
-                                draw_json_inspector(ui, comp_name, comp_value);
+                                draw_typed_inspector(ui, comp_value, self.component_schemas.get(comp_name).expect("Draw inspector error"));
                             });
                             ui.add_space(5.0);
                         }

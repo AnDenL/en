@@ -39,8 +39,10 @@ impl EnEngine {
         }
 
         for template in plugin_registry.components {
-            inserters.insert(template.name.to_string(), template.inserter);
-            println!("[EnEngine] Registered plugin component: {}", template.name);
+            if !inserters.contains_key(template.name) {
+                inserters.insert(template.name.to_string(), template.inserter);
+                println!("[EnEngine] Registered plugin component: {}", template.name);
+            }
         }
 
         for sys in inventory::iter::<crate::SystemRegister> {
@@ -57,16 +59,17 @@ impl EnEngine {
     }
 
     pub fn init_project(&mut self, project_path: &str) {
-        let project_file = std::path::Path::new(project_path).join("en_project.json");
+        let project_dir = std::path::Path::new(project_path);
         
+        let project_file = project_dir.join("en_project.json");
+
         if let Ok(data) = std::fs::read_to_string(&project_file) {
             let json: serde_json::Value = serde_json::from_str(&data).unwrap_or_default();
             let entry_scene = json["entry_scene"].as_str().unwrap_or("main.scene");
             
-            let scene_path = std::path::Path::new(project_path).join(entry_scene);
-            self.load_scene(scene_path.to_str().unwrap());
+            self.load_scene(project_path, entry_scene);
         } else {
-            eprintln!("[EnEngine] Not found en_project.json {}", project_path);
+            eprintln!("[EnEngine] can't load project file: {:?}", project_file);
         }
     }
 
@@ -106,16 +109,17 @@ impl EnEngine {
         self.renderer.render(&instances)
     }
 
-    pub fn load_scene(&mut self, path: &str) {
-        let path_clone = path.to_string();
-        let loader = AssetLoader::new("assets/");
+    pub fn load_scene(&mut self, project_path: &str, scene_file: &str) {
+        let loader_path = format!("{}/", project_path);
+        let loader = AssetLoader::new(&loader_path);
         
+        let scene_file_clone = scene_file.to_string();
         let (tx, rx) = std::sync::mpsc::channel();
-
+        
         #[cfg(target_arch = "wasm32")]
         {
             wasm_bindgen_futures::spawn_local(async move {
-                if let Some(scene) = Scene::load(&loader, &path_clone).await {
+                if let Some(scene) = Scene::load(&loader, &scene_file_clone).await {
                     let _ = tx.send(scene);
                 }
             });
@@ -123,7 +127,7 @@ impl EnEngine {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let scene = pollster::block_on(Scene::load(&loader, &path_clone));
+            let scene = pollster::block_on(Scene::load(&loader, &scene_file_clone));
             if let Some(s) = scene { let _ = tx.send(s); }
         }
 

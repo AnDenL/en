@@ -22,6 +22,7 @@ pub struct ComponentTemplate {
     pub name: &'static str,
     pub generator: fn() -> serde_json::Value,
     pub inserter: fn(&mut bevy_ecs::world::EntityWorldMut, serde_json::Value),
+    pub schema: fn() -> serde_json::Value,
 }
 
 #[derive(Clone)]

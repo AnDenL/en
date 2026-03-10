@@ -1,78 +1,134 @@
 use eframe::egui;
 
-pub fn draw_json_inspector(ui: &mut egui::Ui, name: &str, value: &mut serde_json::Value) -> bool {
+pub fn draw_typed_inspector(
+    ui: &mut egui::Ui, 
+    value: &mut serde_json::Value, 
+    schema: &serde_json::Value 
+) -> bool {
     let mut changed = false;
 
-    match value {
-        serde_json::Value::Object(map) => {
-            ui.collapsing(egui::RichText::new(name).strong(), |ui| {
-                for (k, v) in map.iter_mut() {
-                    if draw_json_inspector(ui, k, v) {
-                        changed = true;
-                    }
-                }
-            });
-        }
-        serde_json::Value::Array(arr) => {
-            if arr.len() == 4 && arr.iter().all(|v| v.is_number()) {
+    if let (serde_json::Value::Object(val_map), serde_json::Value::Object(schema_map)) = (value, schema) {
+        for (field_name, expected_type_val) in schema_map.iter() {
+            let expected_type = expected_type_val.as_str().unwrap_or("");
+            
+            if let Some(field_value) = val_map.get_mut(field_name) {
                 ui.horizontal(|ui| {
-                    ui.label(name);
-                    let r = arr[0].as_f64().unwrap_or(1.0) as f32;
-                    let g = arr[1].as_f64().unwrap_or(1.0) as f32;
-                    let b = arr[2].as_f64().unwrap_or(1.0) as f32;
-                    let a = arr[3].as_f64().unwrap_or(1.0) as f32;
                     
-                    let mut color = egui::Color32::from_rgba_unmultiplied(
-                        (r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8, (a * 255.0) as u8
-                    );
+                    let is_complex = expected_type.starts_with('[') || expected_type.contains("Vec") || expected_type.chars().next().unwrap().is_uppercase();
                     
-                    if ui.color_edit_button_srgba(&mut color).changed() {
-                        arr[0] = serde_json::json!(color.r() as f32 / 255.0);
-                        arr[1] = serde_json::json!(color.g() as f32 / 255.0);
-                        arr[2] = serde_json::json!(color.b() as f32 / 255.0);
-                        arr[3] = serde_json::json!(color.a() as f32 / 255.0);
-                        changed = true;
+                    if !is_complex || expected_type == "String" {
+                        ui.label(field_name);
                     }
-                });
-            } else {
-                ui.collapsing(name, |ui| {
-                    for (i, v) in arr.iter_mut().enumerate() {
-                        if draw_json_inspector(ui, &format!("[{}]", i), v) { changed = true; }
+
+                    match expected_type {
+                        "f32" | "f64" => {
+                            let mut f = field_value.as_f64().unwrap_or(0.0) as f32;
+                            if ui.add(egui::DragValue::new(&mut f).speed(0.1)).changed() {
+                                *field_value = serde_json::json!(f);
+                                changed = true;
+                            }
+                        },
+
+                        "i8" | "i16" | "i32" | "i64" | "isize" => {
+                            let mut i = field_value.as_i64().unwrap_or(0) as i32;
+                            if ui.add(egui::DragValue::new(&mut i).speed(1)).changed() {
+                                *field_value = serde_json::json!(i);
+                                changed = true;
+                            }
+                        },
+
+                        "u8" | "u16" | "u32" | "u64" | "usize" => {
+                            let mut u = field_value.as_u64().unwrap_or(0) as u32;
+                            if ui.add(egui::DragValue::new(&mut u).speed(1)).changed() {
+                                *field_value = serde_json::json!(u);
+                                changed = true;
+                            }
+                        },
+
+                        "bool" => {
+                            let mut b = field_value.as_bool().unwrap_or(false);
+                            if ui.checkbox(&mut b, "").changed() {
+                                *field_value = serde_json::json!(b);
+                                changed = true;
+                            }
+                        },
+
+                        "String" => {
+                            let mut s = field_value.as_str().unwrap_or("").to_string();
+                            if ui.text_edit_singleline(&mut s).changed() {
+                                *field_value = serde_json::json!(s);
+                                changed = true;
+                            }
+                        },
+
+                        "[f32;2]" => {
+                            ui.label(field_name);
+                            if let Some(arr) = field_value.as_array_mut() {
+                                if arr.len() == 2 {
+                                    let mut x = arr[0].as_f64().unwrap_or(0.0) as f32;
+                                    let mut y = arr[1].as_f64().unwrap_or(0.0) as f32;
+                                    
+                                    ui.label(egui::RichText::new("X").color(egui::Color32::LIGHT_RED));
+                                    if ui.add(egui::DragValue::new(&mut x).speed(0.1)).changed() { arr[0] = serde_json::json!(x); changed = true; }
+                                    
+                                    ui.label(egui::RichText::new("Y").color(egui::Color32::LIGHT_GREEN));
+                                    if ui.add(egui::DragValue::new(&mut y).speed(0.1)).changed() { arr[1] = serde_json::json!(y); changed = true; }
+                                }
+                            }
+                        },
+
+                        "[f32;3]" => {
+                            ui.label(field_name);
+                            if let Some(arr) = field_value.as_array_mut() {
+                                if arr.len() == 3 {
+                                    let mut x = arr[0].as_f64().unwrap_or(0.0) as f32;
+                                    let mut y = arr[1].as_f64().unwrap_or(0.0) as f32;
+                                    let mut z = arr[2].as_f64().unwrap_or(0.0) as f32;
+                                    
+                                    ui.label(egui::RichText::new("X").color(egui::Color32::LIGHT_RED));
+                                    if ui.add(egui::DragValue::new(&mut x).speed(0.1)).changed() { arr[0] = serde_json::json!(x); changed = true; }
+                                    
+                                    ui.label(egui::RichText::new("Y").color(egui::Color32::LIGHT_GREEN));
+                                    if ui.add(egui::DragValue::new(&mut y).speed(0.1)).changed() { arr[1] = serde_json::json!(y); changed = true; }
+                                    
+                                    ui.label(egui::RichText::new("Z").color(egui::Color32::LIGHT_BLUE));
+                                    if ui.add(egui::DragValue::new(&mut z).speed(0.1)).changed() { arr[2] = serde_json::json!(z); changed = true; }
+                                }
+                            }
+                        },
+
+                        "[f32;4]" => {
+                            ui.label(field_name);
+                            if let Some(arr) = field_value.as_array_mut() {
+                                if arr.len() == 4 {
+                                    let r = arr[0].as_f64().unwrap_or(1.0) as f32;
+                                    let g = arr[1].as_f64().unwrap_or(1.0) as f32;
+                                    let b = arr[2].as_f64().unwrap_or(1.0) as f32;
+                                    let a = arr[3].as_f64().unwrap_or(1.0) as f32;
+                                    
+                                    let mut color = egui::Color32::from_rgba_unmultiplied(
+                                        (r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8, (a * 255.0) as u8
+                                    );
+                                    
+                                    if ui.color_edit_button_srgba(&mut color).changed() {
+                                        arr[0] = serde_json::json!(color.r() as f32 / 255.0);
+                                        arr[1] = serde_json::json!(color.g() as f32 / 255.0);
+                                        arr[2] = serde_json::json!(color.b() as f32 / 255.0);
+                                        arr[3] = serde_json::json!(color.a() as f32 / 255.0);
+                                        changed = true;
+                                    }
+                                }
+                            }
+                        },
+
+                        _ => {
+                            ui.label(format!("(Unsupported type: {})", expected_type)); 
+                        }
                     }
                 });
             }
         }
-        serde_json::Value::Number(num) => {
-            ui.horizontal(|ui| {
-                ui.label(name);
-                if let Some(val) = num.as_f64() {
-                    let mut f = val;
-                    if ui.add(egui::DragValue::new(&mut f).speed(0.1)).changed() {
-                        if num.is_i64() || num.is_u64() {
-                            *num = serde_json::Number::from(f as i64);
-                        } else {
-                            *num = serde_json::Number::from_f64(f).unwrap();
-                        }
-                        changed = true;
-                    }
-                }
-            });
-        }
-        serde_json::Value::String(s) => {
-            ui.horizontal(|ui| {
-                ui.label(name);
-                if ui.text_edit_singleline(s).changed() { changed = true; }
-            });
-        }
-        serde_json::Value::Bool(b) => {
-            ui.horizontal(|ui| {
-                ui.label(name);
-                if ui.checkbox(b, "").changed() { changed = true; }
-            });
-        }
-        serde_json::Value::Null => {
-            ui.horizontal(|ui| { ui.label(name); ui.label("null"); });
-        }
     }
+    
     changed
 }

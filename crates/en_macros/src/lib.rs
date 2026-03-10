@@ -61,6 +61,18 @@ pub fn en_component(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let name = &input_struct.ident;
     let name_str = name.to_string();
 
+    let mut schema_entries = Vec::new();
+    if let syn::Fields::Named(fields) = &input_struct.fields {
+        for field in &fields.named {
+            let field_name = field.ident.as_ref().unwrap().to_string();
+            let field_type = quote::ToTokens::to_token_stream(&field.ty).to_string().replace(" ", "");
+            
+            schema_entries.push(quote! {
+                map.insert(#field_name.to_string(), serde_json::json!(#field_type));
+            });
+        }
+    }
+
     let expanded = quote! {
         #[derive(bevy_ecs::prelude::Component, serde::Serialize, serde::Deserialize, Clone, Debug, smart_default::SmartDefault)]
         #input_struct
@@ -76,6 +88,11 @@ pub fn en_component(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     } else {
                         eprintln!("[EnEngine] Failed to deserialize component: {}", #name_str);
                     }
+                },
+                schema: || {
+                    let mut map = serde_json::Map::new();
+                    #(#schema_entries)*
+                    serde_json::Value::Object(map)
                 }
             }
         }
