@@ -1,3 +1,6 @@
+use serde::de::DeserializeOwned;
+
+#[derive(Clone)]
 pub struct AssetLoader {
     base_path: String,
 }
@@ -62,6 +65,13 @@ impl AssetLoader {
             let array = js_sys::Uint8Array::new(&buffer);
             Ok(array.to_vec())
         }
+    }
+
+    pub async fn load_json<T: DeserializeOwned>(&self, path: &str) -> Result<T, String> {
+        let json_str = self.load_string(path).await?;
+        
+        serde_json::from_str::<T>(&json_str)
+            .map_err(|e| format!("Failed to parse JSON in {}: {}", path, e))
     }
 }
 

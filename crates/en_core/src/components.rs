@@ -1,5 +1,7 @@
 use en_macros::en_component;
 
+use crate::Color;
+
 #[en_component]
 pub struct Transform {
     pub x: f32,
@@ -15,7 +17,10 @@ pub struct Vel {
 }
 
 #[en_component]
-pub struct Sprite {
-    #[default([1.0, 1.0, 1.0, 1.0])]
-    pub color: [f32; 4],
+pub struct Render {
+    pub s_id: crate::texture_manager::SpriteId,
+    pub color: Color, 
+    pub layer: f32,
+    pub flip_x: bool,
+    pub flip_y: bool,
 }

@@ -1327,6 +1327,7 @@ dependencies = [
  "bytemuck",
  "en_macros",
  "glam 0.29.3",
+ "image",
  "inventory",
  "js-sys",
  "pollster 0.3.0",

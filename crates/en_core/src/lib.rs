@@ -6,6 +6,8 @@ pub mod time;
 pub mod input;
 pub mod scene;
 pub mod assets;
+pub mod types;
+pub mod texture_manager;
 
 pub use engine::EnEngine;
 pub use en_macros::*;
@@ -13,6 +15,9 @@ pub use inventory;
 pub use bevy_ecs;
 pub use smart_default;
 pub use serde_json;
+
+pub use types::*;
+pub use texture_manager::{SpriteData, SpriteId, SpriteManager};
 
 #[doc(hidden)]
 extern crate self as en_core;
@@ -49,4 +54,7 @@ pub mod prelude {
     pub use crate::serde_json;
     pub use crate::en_system;
     pub use crate::en_component;
+
+
+    pub use crate::types::*;
 }

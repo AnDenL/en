@@ -9,7 +9,7 @@ use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop, ControlFlow};
 use winit::window::WindowId;
 
-use crate::components::{Sprite, Transform};
+use crate::components::{Render, Transform};
 use crate::renderer::{Renderer, InstanceRaw};
 use crate::time::Time;
 use crate::input::Input;
@@ -30,6 +30,7 @@ impl EnEngine {
 
         world.insert_resource(crate::time::Time::default());
         world.insert_resource(crate::input::Input::default());
+        world.insert_resource(crate::texture_manager::SpriteManager::default());
 
         let mut schedule = Schedule::default();
         let mut inserters = std::collections::HashMap::new();
@@ -91,7 +92,7 @@ impl EnEngine {
 
     pub fn render(&mut self) -> Result<(), &'static str> {
         let mut instances = Vec::new();
-        let mut query = self.world.query::<(&Transform, &Sprite)>();
+        let mut query = self.world.query::<(&Transform, &Render)>();
         
         for (transform, sprite) in query.iter(&self.world) {
             let model_matrix = Mat4::from_scale_rotation_translation(
@@ -102,7 +103,7 @@ impl EnEngine {
 
             instances.push(InstanceRaw {
                 model: model_matrix.to_cols_array_2d(),
-                color: sprite.color,
+                color: *sprite.color,
             });
         }
 
