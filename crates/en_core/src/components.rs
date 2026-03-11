@@ -1,6 +1,15 @@
 use en_macros::en_component;
-
+use bevy_ecs::prelude::ReflectComponent;
 use crate::{Color, SpriteId};
+
+#[en_component]
+pub struct Name(pub String);
+
+impl From<&str> for Name {
+    fn from(s: &str) -> Self {
+        Self(s.to_string())
+    }
+}
 
 #[en_component]
 pub struct Transform {

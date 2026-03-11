@@ -5,6 +5,8 @@ edition = "2024"
 
 [dependencies]
 eframe = { version = "0.33", features = ["wgpu"] }
+bevy-inspector-egui = { version = "0.36", default-features = false }
+egui_dock = "0.18"
 wgpu = "27.0.1"
 
 glam = { version = "0.29", features = ["bytemuck"] }
@@ -17,5 +19,3 @@ pollster = "0.3"
 
 en_core = { path = "../en_core" }
 en_ui = { path = "../en_ui" }
-
-en_runner = { path = "../en_runner"}

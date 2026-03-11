@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
+use bevy_reflect::Reflect;
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, Reflect)]
 pub struct Color {
     pub r: f32,
     pub g: f32,
@@ -19,7 +20,7 @@ impl Color {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, Reflect)]
 pub struct Rect {
     pub x: f32,
     pub y: f32,
@@ -27,6 +28,6 @@ pub struct Rect {
     pub h: f32,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, Reflect)]
 #[serde(transparent)]
 pub struct SpriteId(pub u32);

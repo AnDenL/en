@@ -1,3 +1,4 @@
+use bevy_ecs::component::Component;
 use bevy_ecs::world::World;
 use bevy_ecs::prelude::{Schedule};
 use std::cell::RefCell;
@@ -17,6 +18,10 @@ use crate::time::Time;
 use crate::input::Input;
 use crate::scene::Scene;
 use crate::assets::AssetLoader;
+
+//#[cfg(feature = "editor")]
+#[derive(Component)]
+pub struct EditorSelected;
 
 pub struct EnEngine {
     pub renderer: Renderer,
@@ -93,22 +98,7 @@ impl EnEngine {
     }
 
     pub fn render(&mut self) -> Result<(), &'static str> {
-        let mut instances = Vec::new();
-        let mut query = self.world.query::<(&Transform, &Render)>();
-        
-        for (transform, sprite) in query.iter(&self.world) {
-            let model_matrix = Mat4::from_scale_rotation_translation(
-                Vec3::ONE, 
-                Quat::from_rotation_z(transform.rotation), 
-                Vec3::new(transform.x, transform.y, 0.0)
-            );
-
-            instances.push(InstanceRaw {
-                model: model_matrix.to_cols_array_2d(),
-                color: sprite.color.to_array(),
-            });
-        }
-
+        let instances = self.get_render_instances();
         self.renderer.render(&instances)
     }
 
@@ -140,20 +130,125 @@ impl EnEngine {
     }
 
     fn apply_scene(&mut self, scene: Option<Scene>) {
-    if let Some(scene) = scene {
-        for entity_data in scene.entities {
-            let mut entity = self.world.spawn_empty();
-            
-            for (comp_name, comp_value) in entity_data.components {
-                if let Some(inserter) = self.inserters.get(comp_name.as_str()) {
-                    (inserter)(&mut entity, comp_value);
-                } else {
-                    eprintln!("[EnEngine Warning] Unknown component: {}", comp_name);
+        if let Some(scene) = scene {
+            for entity_data in scene.entities {
+                let mut entity = self.world.spawn_empty();
+                
+                for (comp_name, comp_value) in entity_data.components {
+                    if let Some(inserter) = self.inserters.get(comp_name.as_str()) {
+                        (inserter)(&mut entity, comp_value);
+                    } else {
+                        eprintln!("[EnEngine Warning] Unknown component: {}", comp_name);
+                    }
                 }
             }
         }
     }
-}
+
+    // INITIALIZATION FOR THE EDITOR
+    // This method will call eframe when the program starts.
+    // We are not creating a window here, but taking ready-made video card resources (wgpu),
+    // which are kindly provided to us by eframe.
+    pub fn new_for_editor(
+        device: Arc<wgpu::Device>, 
+        queue: Arc<wgpu::Queue>, 
+        format: wgpu::TextureFormat,
+        plugin_registry: crate::PluginRegistry,
+    ) -> Self {
+        // Create a renderer specifically for the editor (it has no surface and no window)
+        let renderer = Renderer::new_for_editor(device, queue, format);
+        let mut world = World::new();
+
+        let mut schedule = Schedule::default();
+        let mut inserters = std::collections::HashMap::new();
+
+        let type_registry = bevy_ecs::reflect::AppTypeRegistry::default();
+        {
+            let mut registry_lock = type_registry.write();
+            
+            for template in inventory::iter::<crate::ComponentTemplate> {
+                inserters.insert(template.name.to_string(), template.inserter);
+                
+                (template.register_type)(&mut registry_lock);
+            }
+
+            for template in plugin_registry.components {
+                if !inserters.contains_key(template.name) {
+                    inserters.insert(template.name.to_string(), template.inserter);
+                    
+                    (template.register_type)(&mut registry_lock);
+                }
+            }
+        }
+
+        world.insert_resource(type_registry);
+        world.insert_resource(crate::time::Time::default());
+        world.insert_resource(crate::input::Input::default());
+        world.insert_resource(crate::texture_manager::SpriteManager::default());
+
+        for sys in inventory::iter::<crate::SystemRegister> {
+            (sys.register)(&mut schedule);
+        }
+
+        for sys in plugin_registry.systems {
+            (sys.register)(&mut schedule);
+        }
+
+        Self { renderer, world, schedule, inserters }
+    }
+
+    // This method collects all data for wgpu directly from ECS memory.
+    pub fn get_render_instances(&mut self) -> Vec<InstanceRaw> {
+        let mut instances = Vec::new();
+        
+        // Querying ECS for Transform and Render components.
+        // We use Option<&EditorSelected> so the query includes entities even without the selection marker.
+        let mut query = self.world.query::<(
+            &Transform, 
+            &Render, 
+            Option<&EditorSelected>
+        )>();
+        
+        for (transform, render, selected) in query.iter(&self.world) {
+            // Create base transformation matrix using glam.
+            // Assuming your Transform uses 2D coordinates (x, y) and rotation in radians.
+            let position = Vec3::new(transform.x, transform.y, 0.0);
+            let rotation = Quat::from_rotation_z(transform.rotation);
+            let scale = Vec3::ONE; // Default scale, can be replaced with transform.scale if available
+
+            let model_matrix = Mat4::from_scale_rotation_translation(scale, rotation, position);
+
+            // Convert glam Mat4 to the raw nested array [[f32; 4]; 4] for wgpu.
+            let model = model_matrix.to_cols_array_2d();
+            let color_arr = render.color.to_array();
+
+            // --- Editor Selection Outline Logic ---
+            if selected.is_some() {
+                let outline_scale_val = 1.05;
+                
+                // Create a slightly larger matrix for the outline.
+                let outline_matrix = Mat4::from_scale_rotation_translation(
+                    Vec3::splat(outline_scale_val), 
+                    rotation, 
+                    position
+                );
+                
+                instances.push(InstanceRaw { 
+                    model: outline_matrix.to_cols_array_2d(), 
+                    color: [1.0, 0.8, 0.0, 1.0] // Yellow highlight
+                });
+            }
+
+            // Add the actual sprite instance.
+            // If the outline was added, this will be rendered on top (depending on your pipeline/depth).
+            instances.push(InstanceRaw { 
+                model, 
+                color: color_arr 
+            });
+        }
+        
+        instances
+    }
 }
 
 struct EngineApp {

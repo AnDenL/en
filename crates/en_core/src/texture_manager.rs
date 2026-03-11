@@ -18,7 +18,7 @@ pub enum TextureState {
 pub struct TextureMeta {
     pub texture_path: String,
     pub filter_mode: Option<String>,
-    // HashMap, де ключ - це назва нарізки (наприклад, "idle"), а значення - координати
+    // HashMap, where the key is the slice name (e.g. "idle") and the value is the coordinates
     pub slices: std::collections::HashMap<String, Rect>, 
 }
 
@@ -47,7 +47,7 @@ pub struct SpriteManager {
     pub textures: HashMap<u32, TextureState>,
     pub sprites: HashMap<u32, SpriteData>,
     
-    texture_rx: Mutex<Receiver<(u32, image::RgbaImage)>>,
+    _texture_rx: Mutex<Receiver<(u32, image::RgbaImage)>>,
     texture_tx: Mutex<Sender<(u32, image::RgbaImage)>>,
 }
 
@@ -60,8 +60,8 @@ impl SpriteManager {
         self.textures.insert(tex_id, TextureState::Loading);
         
         let tx = self.texture_tx.lock().unwrap().clone();
-        let path = format!("sprites/{}.png", name); // Або читаємо з мета-файлу
-        let loader_clone = (*loader).clone(); // Твій ассет лоадер має підтримувати клон (Arc під капотом)
+        let path = format!("sprites/{}.png", name); // Or read from the meta file
+        let loader_clone = (*loader).clone(); 
 
         #[cfg(target_arch = "wasm32")]
         wasm_bindgen_futures::spawn_local(async move {
@@ -80,14 +80,13 @@ impl SpriteManager {
         });
     }
 
-    // 2. Цю функцію треба викликати в методі update() твого EnEngine
-    pub fn process_loaded_textures(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
-        // Читаємо всі картинки, які встигли завантажитись за цей кадр
-        while let Ok((tex_id, rgba_image)) = self.texture_rx.lock().unwrap().try_recv() {
-            let width = rgba_image.width() as f32;
-            let height = rgba_image.height() as f32;
+    //pub fn process_loaded_textures(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+        // Read all the images that were loaded in this frame
+        //while let Ok((tex_id, rgba_image)) = self.texture_rx.lock().unwrap().try_recv() {
+            //let width = rgba_image.width() as f32;
+            //let height = rgba_image.height() as f32;
             
-            // TODO: Створити wgpu::Texture та wgpu::BindGroup з rgba_image
+            // TODO: Create wgpu::Texture та wgpu::BindGroup with rgba_image
             //let bind_group = create_wgpu_texture(device, queue, &rgba_image); 
 
             // self.textures.insert(tex_id, TextureState::Ready {
@@ -96,14 +95,13 @@ impl SpriteManager {
             //     height,
             // });
             
-            println!("[SpriteManager] Texture loaded and sent to GPU!");
-        }
-    }
+            //println!("[SpriteManager] Texture loaded and sent to GPU!");
+        //}
+    //}
 
     pub async fn init_meta(&mut self, loader: &crate::assets::AssetLoader) {
         let index_path = ".en_meta/sprites/index.json";
-        
-        // Використовуємо нашу нову "рибку"!
+
         match loader.load_json::<Vec<String>>(index_path).await {
             Ok(sprite_names) => {
                 for name in sprite_names {
@@ -113,7 +111,6 @@ impl SpriteManager {
             }
             Err(e) => {
                 eprintln!("[SpriteManager] Warning: No index.json found or error: {}", e);
-                // Тут можна додати скрипт build.rs, як ти робив раніше, щоб він генерував цей index.json
             }
         }
     }
@@ -124,10 +121,10 @@ impl SpriteManager {
         if let Ok(meta) = loader.load_json::<TextureMeta>(&meta_path).await {
             let tex_id = hash_string(name);
             
-            // Якщо в метаданих є нарізка (slices)
+            // If there are slices in the metadata
             if !meta.slices.is_empty() {
                 for (slice_name, rect) in meta.slices {
-                    // Формуємо ім'я спрайту, наприклад "player_idle"
+                    // Form the name of the sprite, for example "player_idle"
                     let sprite_name = format!("{}_{}", name, slice_name);
                     let sprite_id = hash_string(&sprite_name);
                     
@@ -137,13 +134,13 @@ impl SpriteManager {
                     });
                 }
             } else {
-                // Якщо нарізки немає, то вся картинка - це один спрайт
-                // (Поки що ставимо умовні нулі, їх треба буде замінити на реальні розміри при створенні текстури,
-                // або в метаданих обов'язково вказувати розмір)
+                // If there is no slice, then the whole picture is one sprite
+                // (For now, we are setting conditional zeros, they will need to be replaced with real sizes when creating the texture,
+                // or the size must be specified in the metadata)
                 let sprite_id = hash_string(name);
                 self.sprites.insert(sprite_id, SpriteData {
                     texture_id: tex_id,
-                    uv_rect: Rect { x: 0.0, y: 0.0, w: 1.0, h: 1.0 }, // Умовні UV координати на всю текстуру
+                    uv_rect: Rect { x: 0.0, y: 0.0, w: 1.0, h: 1.0 }, // UV coordinates for the entire texture
                 });
             }
         } else {
@@ -158,7 +155,7 @@ impl Default for SpriteManager {
         Self {
             textures: HashMap::new(),
             sprites: HashMap::new(),
-            texture_rx: Mutex::new(rx),
+            _texture_rx: Mutex::new(rx),
             texture_tx: Mutex::new(tx),
         }
     }

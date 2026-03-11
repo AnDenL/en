@@ -60,28 +60,23 @@ pub fn en_component(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input_struct = parse_macro_input!(item as ItemStruct);
     let name = &input_struct.ident;
     let name_str = name.to_string();
-
-    let mut schema_entries = Vec::new();
-    if let syn::Fields::Named(fields) = &input_struct.fields {
-        for field in &fields.named {
-            let field_name = field.ident.as_ref().unwrap().to_string();
-            let field_type = quote::ToTokens::to_token_stream(&field.ty).to_string().replace(" ", "");
-            
-            schema_entries.push(quote! {
-                map.insert(#field_name.to_string(), serde_json::json!(#field_type));
-            });
-        }
-    }
-
     let expanded = quote! {
-        #[derive(bevy_ecs::prelude::Component, serde::Serialize, serde::Deserialize, Clone, Debug, smart_default::SmartDefault)]
+        #[derive(
+            bevy_ecs::prelude::Component, 
+            bevy_reflect::Reflect, 
+            serde::Serialize,
+            serde::Deserialize, 
+            Clone, 
+            Debug, 
+            smart_default::SmartDefault
+        )]
+        #[reflect(Component)]
         #input_struct
 
         inventory::submit! {
             ::en_core::ComponentTemplate {
                 name: #name_str,
                 generator: || serde_json::to_value(#name::default()).unwrap(),
-                
                 inserter: |entity_mut, value| {
                     if let Ok(component) = serde_json::from_value::<#name>(value) {
                         entity_mut.insert(component);
@@ -89,10 +84,8 @@ pub fn en_component(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         eprintln!("[EnEngine] Failed to deserialize component: {}", #name_str);
                     }
                 },
-                schema: || {
-                    let mut map = serde_json::Map::new();
-                    #(#schema_entries)*
-                    serde_json::Value::Object(map)
+                register_type: |registry| {
+                    registry.register::<#name>();
                 }
             }
         }

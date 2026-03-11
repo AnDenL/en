@@ -1,3 +1,4 @@
+use egui::{Frame, Margin, CornerRadius};
 use egui::{Color32, Context, FontData, FontDefinitions, FontFamily, Stroke, Visuals};
 use std::sync::Arc;
 
@@ -53,4 +54,38 @@ pub fn configure_styles(ctx: &Context) {
 pub fn setup(ctx: &Context) {
     setup_custom_fonts(ctx);
     configure_styles(ctx);
+}
+
+/// Creates a standard frame for side panels (Inspector, Scene Tree)
+pub fn side_panel_frame() -> Frame {
+    Frame {
+        inner_margin: Margin::same(8),
+        corner_radius: CornerRadius::ZERO,
+        fill: BG, // Using your existing BG color
+        stroke: Stroke::NONE,
+        ..Default::default()
+    }
+}
+
+/// Creates a frame for the central viewport (where the game is rendered)
+/// We remove margins so the game view takes the full space.
+pub fn viewport_frame() -> Frame {
+    Frame {
+        inner_margin: Margin::ZERO,
+        corner_radius: CornerRadius::ZERO,
+        fill: Color32::BLACK,
+        stroke: Stroke::NONE,
+        ..Default::default()
+    }
+}
+
+/// Creates a standard frame for top/bottom bars
+pub fn bar_frame() -> Frame {
+    Frame {
+        inner_margin: Margin::symmetric(12, 6),
+        corner_radius: CornerRadius::ZERO,
+        fill: CARD_BG,
+        stroke: Stroke::NONE,
+        ..Default::default()
+    }
 }
