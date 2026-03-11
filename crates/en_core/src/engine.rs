@@ -1,5 +1,7 @@
 use bevy_ecs::world::World;
 use bevy_ecs::prelude::{Schedule};
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::Arc;
 use winit::window::Window;
 use glam::{Mat4, Quat, Vec3}; 
@@ -24,8 +26,8 @@ pub struct EnEngine {
 }
 
 impl EnEngine {
-    pub fn new(window: Arc<Window>, plugin_registry: crate::PluginRegistry) -> Self {
-        let renderer = pollster::block_on(Renderer::new(window));
+    pub async fn new(window: Arc<Window>, plugin_registry: crate::PluginRegistry) -> Self {
+        let renderer = Renderer::new(window).await;
         let mut world = World::new();
 
         world.insert_resource(crate::time::Time::default());
@@ -59,7 +61,7 @@ impl EnEngine {
         Self { renderer, world, schedule, inserters }
     }
 
-    pub fn init_project(&mut self, project_path: &str) {
+    pub async fn init_project(&mut self, project_path: &str) {
         let project_dir = std::path::Path::new(project_path);
         
         let project_file = project_dir.join("en_project.json");
@@ -103,7 +105,7 @@ impl EnEngine {
 
             instances.push(InstanceRaw {
                 model: model_matrix.to_cols_array_2d(),
-                color: *sprite.color,
+                color: sprite.color.to_array(),
             });
         }
 
@@ -155,14 +157,16 @@ impl EnEngine {
 }
 
 struct EngineApp {
-    engine: Option<EnEngine>,
+    engine: Rc<RefCell<Option<EnEngine>>>,
     project_path: String,
     plugin_registry: Option<crate::PluginRegistry>,
 }
 
 impl ApplicationHandler for EngineApp {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.engine.is_none() {
+        let engine_is_none = self.engine.borrow().is_none();
+        
+        if engine_is_none {
             let window_attr = Window::default_attributes()
                 .with_decorations(false)
                 .with_transparent(true);
@@ -173,16 +177,32 @@ impl ApplicationHandler for EngineApp {
                 components: vec![],
                 systems: vec![],
             });
+            let project_path = self.project_path.clone();
+            #[cfg(target_arch = "wasm32")]
+            let engine_handle = self.engine.clone();
 
-            let mut engine = EnEngine::new(window, registry);
-            
-            engine.init_project(&self.project_path);
-            self.engine = Some(engine);
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                let mut engine = pollster::block_on(EnEngine::new(window, registry));
+                pollster::block_on(engine.init_project(&project_path));
+                *self.engine.borrow_mut() = Some(engine);
+            }
+
+            #[cfg(target_arch = "wasm32")]
+            {
+                use wasm_bindgen_futures::spawn_local;
+                
+                spawn_local(async move {
+                    let mut engine = EnEngine::new(window, registry).await;
+                    engine.init_project(&project_path).await;
+                    *engine_handle.borrow_mut() = Some(engine);
+                });
+            }
         }
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-        if let Some(engine) = &mut self.engine {
+        if let Some(engine) = self.engine.borrow_mut().as_mut() {
             match event {
                 WindowEvent::CloseRequested => {
                     event_loop.exit();
@@ -216,7 +236,8 @@ impl ApplicationHandler for EngineApp {
     }
     
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        if let Some(engine) = &self.engine {
+        if let Some(engine) = &mut *self.engine.borrow_mut() {
+            engine.update();
             if let Some(window) = &engine.renderer.window {
                 window.request_redraw();
             }
@@ -230,7 +251,7 @@ pub fn run(project_path: String, plugin_registry: crate::PluginRegistry) {
     event_loop.set_control_flow(ControlFlow::Poll); 
     
     let mut app = EngineApp {
-        engine: None,
+        engine: Rc::new(RefCell::new(None)),
         project_path,
         plugin_registry: Some(plugin_registry),
     };

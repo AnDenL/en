@@ -17,7 +17,7 @@ pub use smart_default;
 pub use serde_json;
 
 pub use types::*;
-pub use texture_manager::{SpriteData, SpriteId, SpriteManager};
+pub use texture_manager::{SpriteData, SpriteManager};
 
 #[doc(hidden)]
 extern crate self as en_core;

@@ -1,6 +1,6 @@
 use en_macros::en_component;
 
-use crate::Color;
+use crate::{Color, SpriteId};
 
 #[en_component]
 pub struct Transform {
@@ -18,7 +18,7 @@ pub struct Vel {
 
 #[en_component]
 pub struct Render {
-    pub s_id: crate::texture_manager::SpriteId,
+    pub s_id: SpriteId,
     pub color: Color, 
     pub layer: f32,
     pub flip_x: bool,

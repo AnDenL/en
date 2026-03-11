@@ -1,4 +1,3 @@
-use std::ops::Deref;
 use serde::{Deserialize, Serialize};
 
 #[repr(C)]
@@ -14,11 +13,9 @@ impl Default for Color {
     fn default() -> Self { Self { r: 1.0, g: 1.0, b: 1.0, a: 1.0 } }
 }
 
-impl Deref for Color {
-    type Target = [f32; 4];
-
-    fn deref(&self) -> &Self::Target {
-        unsafe { std::mem::transmute(self) }
+impl Color {
+    pub fn to_array(&self) -> [f32; 4] {
+        [self.r, self.g, self.b, self.a]
     }
 }
 
@@ -29,3 +26,7 @@ pub struct Rect {
     pub w: f32,
     pub h: f32,
 }
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct SpriteId(pub u32);

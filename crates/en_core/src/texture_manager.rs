@@ -1,5 +1,5 @@
 use bevy_ecs::prelude::Resource;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize};
 use std::{collections::HashMap, sync::{Mutex, mpsc::{Receiver, Sender, channel}}};
 
 use crate::Rect;
@@ -23,10 +23,6 @@ pub struct TextureMeta {
 }
 
 //Sprites
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct SpriteId(pub u32);
 
 pub const fn hash_string(s: &str) -> u32 {
     let mut hash = 2166136261u32;

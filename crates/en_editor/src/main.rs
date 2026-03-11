@@ -382,7 +382,7 @@ impl EditorApp {
         let mut instances = Vec::new();
 
         for (index, entity) in self.scene.entities.iter().enumerate() {
-            let sprite_data = match entity.components.get("Sprite") {
+            let sprite_data = match entity.components.get("Render") {
                 Some(s) => s,
                 None => continue,
             };
@@ -613,7 +613,13 @@ impl eframe::App for EditorApp {
                                 });
                                 ui.separator();
                                 
-                                draw_typed_inspector(ui, comp_value, self.component_schemas.get(comp_name).expect("Draw inspector error"));
+                                if let Some(schema) = self.component_schemas.get(comp_name) {
+                                    draw_typed_inspector(ui, comp_value, schema);
+                                } else {
+                                    ui.horizontal(|ui| {
+                                        ui.label(egui::RichText::new(format!("⚠ Unknown: {}", comp_name)).color(egui::Color32::RED));
+                                    });
+                                }
                             });
                             ui.add_space(5.0);
                         }
@@ -754,7 +760,7 @@ impl eframe::App for EditorApp {
                     mip_level_count: 1,
                     sample_count: 1,
                     dimension: wgpu::TextureDimension::D2,
-                    format: wgpu::TextureFormat::Bgra8Unorm, 
+                    format: wgpu::TextureFormat::Bgra8Unorm,
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
                     view_formats: &[],
                 });
@@ -768,7 +774,6 @@ impl eframe::App for EditorApp {
                 );
 
                 self.renderer.camera.update_aspect_ratio(width as f32, height as f32);
-    
                 self.renderer.update_camera_buffer();
 
                 self.viewport_texture = Some(texture);
@@ -784,9 +789,9 @@ impl eframe::App for EditorApp {
                 
                 let image = egui::Image::new(egui::load::SizedTexture::new(id, size))
                     .sense(egui::Sense::drag());
+                    
                 let response = ui.add(image);
                 let mut camera_changed = false;
-                self.renderer.render_to_view(&instances, &view);
 
                 if response.dragged_by(egui::PointerButton::Secondary) {
                     let delta = response.drag_delta();
@@ -803,7 +808,6 @@ impl eframe::App for EditorApp {
                     if scroll != 0.0 {
                         let zoom_speed = 0.001;
                         self.renderer.camera.scale *= 1.0 - (scroll * zoom_speed);
-                        
                         self.renderer.camera.scale = self.renderer.camera.scale.clamp(0.01, 100.0);
                         camera_changed = true;
                     }
