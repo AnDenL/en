@@ -70,7 +70,7 @@ pub fn en_component(_attr: TokenStream, item: TokenStream) -> TokenStream {
             Debug, 
             smart_default::SmartDefault
         )]
-        #[reflect(Component)]
+        #[reflect(Component, Default)] 
         #input_struct
 
         inventory::submit! {

@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use en_core::engine::EnEngine;
-use crate::panels;
+use crate::panels::{self, inspector};
 
 // ----------------------------------------------------------------------------
 // DOCKING SYSTEM DEFINITIONS
@@ -97,24 +97,7 @@ impl EditorApp {
         let mut engine = EnEngine::new_for_editor(device, queue, target_format, game_registry);
         pollster::block_on(engine.init_project(&project_path));
 
-        {
-            let registry = engine.world.resource::<bevy_ecs::reflect::AppTypeRegistry>();
-            let mut lock = registry.write();
-            macro_rules! register_primitive {
-                ($($t:ty),+) => {
-                    $(
-                        lock.register::<$t>();
-                        lock.register_type_data::<$t, bevy_inspector_egui::inspector_egui_impls::InspectorEguiImpl>();
-                    )+
-                };
-            }
-            register_primitive!(
-                f32, f64,
-                i8, i16, i32, i64, isize,
-                u8, u16, u32, u64, usize,
-                bool, String
-            );
-        }
+        inspector::setup_inspector_registry(&mut engine.world);
 
         // Setup default Dock Layout (Unity/Godot style)
         // 1. Center = Viewport

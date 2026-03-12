@@ -1,5 +1,5 @@
 use en_macros::en_component;
-use bevy_ecs::prelude::ReflectComponent;
+use crate::prelude::{ReflectComponent, ReflectDefault};
 use crate::{Color, SpriteId};
 
 #[en_component]
