@@ -40,8 +40,6 @@ fn main() -> eframe::Result<()> {
             en_ui::theme::setup(&cc.egui_ctx);
 
             // Extract WGPU context from eframe.
-            // This is crucial because our Engine needs the exact same device and queue
-            // to render directly into the eframe UI window.
             let wgpu_state = cc.wgpu_render_state.as_ref().expect("Eframe must run with WGPU!");
             let device = std::sync::Arc::new(wgpu_state.device.clone());
             let queue = std::sync::Arc::new(wgpu_state.queue.clone());

@@ -70,11 +70,10 @@ pub fn draw(ctx: &egui::Context, ui: &mut egui::Ui, app: &mut EditorApp) {
                     app.ui_state.is_playing = !app.ui_state.is_playing;
                 }
                 play_btn_res = Some(p_res);
-
+                
                 let b_res = ui.button("🔨 Build");
                 if b_res.clicked() {
-                    // TODO: Re-implement build logic in app.rs
-                    println!("Build clicked");
+                    app.trigger_build(ui.ctx());
                 }
                 build_btn_res = Some(b_res);
             });

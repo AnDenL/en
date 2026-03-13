@@ -249,6 +249,30 @@ impl EnEngine {
         
         instances
     }
+
+    pub fn reload_plugins(&mut self, plugin_registry: crate::PluginRegistry) {
+        let mut new_schedule = bevy_ecs::prelude::Schedule::default();
+
+        for sys in inventory::iter::<crate::SystemRegister> {
+            (sys.register)(&mut new_schedule);
+        }
+        for sys in plugin_registry.systems {
+            (sys.register)(&mut new_schedule);
+            println!("[EnEngine] Reloaded system: {}", sys.name);
+        }
+
+        self.schedule = new_schedule;
+
+        let type_registry = self.world.resource::<bevy_ecs::reflect::AppTypeRegistry>();
+        let mut registry_lock = type_registry.write();
+
+        for template in plugin_registry.components {
+            self.inserters.insert(template.name.to_string(), template.inserter);
+            (template.register_type)(&mut registry_lock);
+            
+            println!("[EnEngine] Reloaded component: {}", template.name);
+        }
+    }
 }
 
 struct EngineApp {
