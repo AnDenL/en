@@ -1,4 +1,5 @@
 use bevy_ecs::component::Component;
+use bevy_ecs::reflect::AppTypeRegistry;
 use bevy_ecs::world::World;
 use bevy_ecs::prelude::{Schedule};
 use std::cell::RefCell;
@@ -162,7 +163,7 @@ impl EnEngine {
         let mut schedule = Schedule::default();
         let mut inserters = std::collections::HashMap::new();
 
-        let type_registry = bevy_ecs::reflect::AppTypeRegistry::default();
+        let type_registry = AppTypeRegistry::default();
         {
             let mut registry_lock = type_registry.write();
             
@@ -263,7 +264,7 @@ impl EnEngine {
 
         self.schedule = new_schedule;
 
-        let type_registry = self.world.resource::<bevy_ecs::reflect::AppTypeRegistry>();
+        let type_registry = self.world.resource::<AppTypeRegistry>();
         let mut registry_lock = type_registry.write();
 
         for template in plugin_registry.components {

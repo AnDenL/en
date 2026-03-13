@@ -149,8 +149,6 @@ impl eframe::App for HubApp {
 
                         frame.show(ui, |ui| {
                             ui.horizontal(|ui| {
-                                let icon_path = PathBuf::from(&proj.path).join("icon.png");
-
                                 if icon_path.exists() {
                                     let icon_uri = format!("file://{}", icon_path.display());
                                     

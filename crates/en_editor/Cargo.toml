@@ -7,7 +7,7 @@ edition = "2024"
 eframe = { version = "0.33", features = ["wgpu"] }
 bevy-inspector-egui = { version = "0.36", default-features = false }
 egui_dock = "0.18"
-wgpu = "28"
+wgpu = "27.0"
 
 glam = { version = "0.32", features = ["bytemuck"] }
 

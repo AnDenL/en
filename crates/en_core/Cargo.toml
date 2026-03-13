@@ -10,11 +10,11 @@ js-sys = "0.3"
 web-sys = { version = "0.3", features = ["Window", "Response", "Storage"] }
 
 [dependencies]
-wgpu = "28.0"
+wgpu = "27.0"
 image = { version = "0.25", default-features = false, features = ["png"] }
 winit = { version = "0.30", default-features = false, features = ["rwh_06", "x11", "wayland"] }
 glam = { version = "0.32", features = ["bytemuck"] }
-bevy_ecs = { version = "0.18", default-features = false }
+bevy_ecs = { version = "0.18", default-features = false, features = ["bevy_reflect"] }
 bevy_reflect = { version = "0.18", default-features = false }
 pollster = "0.4"
 bytemuck = { version = "1.16", features = ["derive"] }

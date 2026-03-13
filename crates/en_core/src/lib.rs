@@ -50,6 +50,7 @@ inventory::collect!(SystemRegister);
 pub mod prelude {
     pub use bevy_ecs::prelude::*;
     pub use bevy_reflect::prelude::*;
+
     pub use crate::bevy_ecs;
     pub use crate::bevy_reflect;
     pub use crate::components::*;
