@@ -8,6 +8,7 @@ pub mod scene;
 pub mod assets;
 pub mod types;
 pub mod texture_manager;
+pub mod config;
 
 pub use engine::EnEngine;
 pub use en_macros::*;
@@ -18,7 +19,7 @@ pub use smart_default;
 pub use serde_json;
 
 pub use types::*;
-pub use texture_manager::{SpriteData, SpriteManager};
+pub use texture_manager::{SpriteData, TextureManager, SpriteId};
 
 #[doc(hidden)]
 extern crate self as en_core;

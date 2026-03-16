@@ -1,14 +1,10 @@
 use eframe::egui;
 use en_core::{bevy_ecs::entity::Entity, bevy_reflect::serde::TypedReflectSerializer};
 use crate::app::EditorApp;
-use en_core::components::{Name, Transform, Render};
+use en_core::components::{Name, Transform, SpriteRenderer};
 
-/// Draws the Scene Tree Tab (Hierarchy of all entities in the ECS World)
 pub fn draw(ui: &mut egui::Ui, app: &mut EditorApp) {
-    // --- TOP BAR ---
     ui.horizontal(|ui| {
-        ui.heading(egui::RichText::new("Hierarchy").color(en_ui::theme::ACCENT));
-        
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if ui.button(egui::RichText::new("💾 Save Scene").color(en_ui::theme::SUCCESS)).clicked() {
                 
@@ -161,7 +157,7 @@ pub fn draw(ui: &mut egui::Ui, app: &mut EditorApp) {
         let new_ent = ent_mut.id();
         ent_mut.insert(Name("Square".to_string()));
         ent_mut.insert(Transform::default());
-        ent_mut.insert(Render::default());
+        ent_mut.insert(SpriteRenderer::default());
         app.ui_state.selected_entity = Some(new_ent);
     }
 

@@ -2,7 +2,6 @@ use eframe::egui;
 use eframe::egui::FontId;
 use crate::app::EditorApp;
 
-/// Draws the fixed Top Bar (Window controls, Project name, Play/Build buttons)
 pub fn draw(ctx: &egui::Context, ui: &mut egui::Ui, app: &mut EditorApp) {
     ui.add_space(4.0);
 

@@ -1,7 +1,6 @@
 use eframe::egui;
 use crate::app::EditorApp;
 
-/// Draws the Viewport Tab (The actual Game Engine Render)
 pub fn draw(ui: &mut egui::Ui, app: &mut EditorApp, frame: &mut eframe::Frame) {
     // 1. Calculate the available space in this specific dock tab
     let size = ui.available_size();
@@ -28,8 +27,9 @@ pub fn draw(ui: &mut egui::Ui, app: &mut EditorApp, frame: &mut eframe::Frame) {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            // Fallback to Bgra8Unorm if you haven't stored the format in Renderer yet
-            format: wgpu::TextureFormat::Bgra8Unorm, 
+            
+            format: app.engine.renderer.render_format, 
+            
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });
@@ -54,14 +54,8 @@ pub fn draw(ui: &mut egui::Ui, app: &mut EditorApp, frame: &mut eframe::Frame) {
     if let (Some(texture), Some(id)) = (&app.ui_state.viewport_texture, app.ui_state.viewport_texture_id) {
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        // 🔥 THE MAGIC HAPPENS HERE 🔥
-        // We no longer parse JSON! We just ask the ECS for the current state!
-        let instances = app.engine.get_render_instances();
+        app.engine.render_editor_view(&view);
         
-        // Tell the engine to draw these instances into our Viewport texture
-        app.engine.renderer.render_to_view(&instances, &view);
-        
-        // Display the texture in egui
         let image = egui::Image::new(egui::load::SizedTexture::new(id, size))
             .sense(egui::Sense::drag());
             
@@ -70,7 +64,6 @@ pub fn draw(ui: &mut egui::Ui, app: &mut EditorApp, frame: &mut eframe::Frame) {
 
         // --- EDITOR CAMERA CONTROLS ---
         
-        // Right click + Drag to pan the camera
         if response.dragged_by(egui::PointerButton::Secondary) {
             let delta = response.drag_delta();
             let world_unit_per_pixel = (360.0 * 2.0 * app.engine.renderer.camera.scale) / size.y;
@@ -82,7 +75,6 @@ pub fn draw(ui: &mut egui::Ui, app: &mut EditorApp, frame: &mut eframe::Frame) {
 
         // Scroll to zoom
         if response.hovered() {
-            // We use ui.input() because ctx.input() requires ctx which we don't pass here
             let scroll = ui.input(|i| i.smooth_scroll_delta.y);
             if scroll != 0.0 {
                 let zoom_speed = 0.001;

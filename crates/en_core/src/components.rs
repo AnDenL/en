@@ -26,7 +26,7 @@ pub struct Vel {
 }
 
 #[en_component]
-pub struct Render {
+pub struct SpriteRenderer {
     pub s_id: SpriteId,
     pub color: Color, 
     pub layer: f32,

@@ -27,7 +27,3 @@ pub struct Rect {
     pub w: f32,
     pub h: f32,
 }
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, Reflect)]
-#[serde(transparent)]
-pub struct SpriteId(pub u32);

@@ -27,13 +27,10 @@ pub fn setup_inspector_registry(world: &mut World) {
     lock.register::<en_core::types::SpriteId>();
     lock.register::<en_core::types::Rect>();
     lock.register::<en_core::components::Transform>();
-    lock.register::<en_core::components::Render>();
+    lock.register::<en_core::components::SpriteRenderer>();
 }
 
 pub fn draw(ui: &mut egui::Ui, app: &mut EditorApp) {
-    ui.heading(egui::RichText::new("⚙ Inspector").color(en_ui::theme::ACCENT));
-    ui.separator();
-
     if let Some(selected_entity) = app.ui_state.selected_entity {
         
         if !app.engine.world.get_entity(selected_entity).is_ok() {

@@ -16,6 +16,7 @@ fn main() {
         components,
         systems,
     };
-
-    en_core::engine::run(".".to_string(), registry);
+    
+    let project_path = std::env::var("PROJECT_DIR").unwrap_or_else(|_| ".".to_string());
+    en_core::engine::run(project_path, registry);
 }
