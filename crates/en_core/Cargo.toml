@@ -25,4 +25,5 @@ smart-default = "0.7"
 
 inventory = "0.3"
 en_macros = { path = "../en_macros" }
+en_render ={ path = "../en_render" }
 
