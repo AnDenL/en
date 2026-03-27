@@ -1,11 +1,13 @@
 mod api;
+mod batcher;
 mod config;
 mod context;
-mod types;
 mod pass;
 pub mod texture;
+mod types;
 
 pub use api::Renderer;
-pub use config::{RenderSettings, FilterMode, PowerPreference};
-pub use types::{Vertex, InstanceData, RenderBatch};
+pub use batcher::SpriteBatcher;
+pub use config::{FilterMode, PowerPreference, RenderSettings};
 pub use texture::GpuTexture;
+pub use types::{InstanceData, RenderBatch, Vertex};

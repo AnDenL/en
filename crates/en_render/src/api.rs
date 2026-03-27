@@ -1,9 +1,10 @@
-use std::sync::Arc;
-use winit::window::Window;
+use crate::batcher::SpriteBatcher;
 use crate::config::RenderSettings;
 use crate::context::RenderContext;
-use crate::types::RenderBatch;
 use crate::texture::GpuTexture;
+use crate::types::{InstanceData, RenderBatch};
+use std::sync::Arc;
+use winit::window::Window;
 
 pub struct Renderer {
     context: RenderContext,
@@ -12,14 +13,14 @@ pub struct Renderer {
     pub default_white_bind_group: wgpu::BindGroup,
 }
 impl Renderer {
-    /// Ініціалізація з налаштуваннями (Гра)
     pub async fn new(window: Arc<Window>, settings: RenderSettings) -> Result<Self, &'static str> {
         let context = RenderContext::new(window, &settings).await?;
-        let sprite_pass = crate::pass::sprite_pass::SpritePass::new(&context.device, context.render_format);
+        let sprite_pass =
+            crate::pass::sprite_pass::SpritePass::new(&context.device, context.render_format);
         let default_white_bind_group = GpuTexture::create_default_white_bind_group(
-            &context.device, 
-            &context.queue, 
-            &sprite_pass.texture_bind_group_layout
+            &context.device,
+            &context.queue,
+            &sprite_pass.texture_bind_group_layout,
         );
 
         Ok(Self {
@@ -30,14 +31,18 @@ impl Renderer {
         })
     }
 
-    /// Для редактора (без вікна)
-    pub fn new_headless(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>, format: wgpu::TextureFormat, settings: RenderSettings) -> Self {
+    pub fn new_headless(
+        device: Arc<wgpu::Device>,
+        queue: Arc<wgpu::Queue>,
+        format: wgpu::TextureFormat,
+        settings: RenderSettings,
+    ) -> Self {
         let context = RenderContext::new_headless(device.clone(), queue.clone(), format);
         let sprite_pass = crate::pass::sprite_pass::SpritePass::new(&context.device, format);
         let default_white_bind_group = GpuTexture::create_default_white_bind_group(
-            &context.device, 
-            &context.queue, 
-            &sprite_pass.texture_bind_group_layout
+            &context.device,
+            &context.queue,
+            &sprite_pass.texture_bind_group_layout,
         );
 
         Self {
@@ -47,14 +52,17 @@ impl Renderer {
             default_white_bind_group,
         }
     }
-    /// Доступ до Layout-у текстур для зовнішнього TextureManager-а
+
     pub fn texture_layout(&self) -> &wgpu::BindGroupLayout {
         &self.sprite_pass.texture_bind_group_layout
     }
 
-    /// Доступ до Device та Queue для зовнішніх систем (наприклад, завантаження ассетів)
-    pub fn device(&self) -> &Arc<wgpu::Device> { &self.context.device }
-    pub fn queue(&self) -> &Arc<wgpu::Queue> { &self.context.queue }
+    pub fn device(&self) -> &Arc<wgpu::Device> {
+        &self.context.device
+    }
+    pub fn queue(&self) -> &Arc<wgpu::Queue> {
+        &self.context.queue
+    }
 
     pub fn resize(&mut self, width: u32, height: u32) {
         self.context.resize(width, height);
@@ -68,28 +76,47 @@ impl Renderer {
     }
 
     pub fn update_camera(&mut self, view_proj_matrix: [[f32; 4]; 4]) {
-        self.sprite_pass.update_camera(&self.context.queue, view_proj_matrix);
+        self.sprite_pass
+            .update_camera_buffer(&self.context.queue, view_proj_matrix);
     }
 
-    pub fn render(&mut self, batches: &[RenderBatch]) -> Result<(), wgpu::SurfaceError> {
-        let surface = self.context.surface.as_ref().expect("Renderer has no surface!");
+    /// Основний метод рендера для гри. Тепер приймає Batcher напряму для зручності.
+    pub fn render(&mut self, batcher: &mut SpriteBatcher) -> Result<(), wgpu::SurfaceError> {
+        batcher.finish(); // Закриваємо останній батч автоматично
+
+        let surface = self
+            .context
+            .surface
+            .as_ref()
+            .expect("Renderer has no surface!");
         let output = surface.get_current_texture()?;
-        let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
-        
-        self.render_internal(batches, &view);
-        
+        let view = output
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        self.render_internal(batcher.batches(), batcher.instances(), &view);
+
         output.present();
         Ok(())
     }
 
-    pub fn render_to_view(&mut self, batches: &[RenderBatch], view: &wgpu::TextureView) {
-        self.render_internal(batches, view);
+    pub fn render_to_view(&mut self, batcher: &mut SpriteBatcher, view: &wgpu::TextureView) {
+        batcher.finish();
+        self.render_internal(batcher.batches(), batcher.instances(), view);
     }
 
-    fn render_internal(&mut self, batches: &[RenderBatch], target_view: &wgpu::TextureView) {
-        let mut encoder = self.context.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Main Render Encoder"),
-        });
+    fn render_internal(
+        &mut self,
+        batches: &[RenderBatch],
+        instances: &[InstanceData],
+        target_view: &wgpu::TextureView,
+    ) {
+        let mut encoder =
+            self.context
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Main Render Encoder"),
+                });
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -111,10 +138,20 @@ impl Renderer {
                 ..Default::default()
             });
 
-            // Викликаємо draw у нашого пасу
-            self.sprite_pass.draw(&self.context.device, &mut render_pass, batches);
+            // Передаємо в пас і батчі, і єдиний загальний масив інстансів
+            self.sprite_pass.draw(
+                &self.context.device,
+                &self.context.queue,
+                &mut render_pass,
+                batches,
+                instances,
+            );
         }
 
         self.context.queue.submit(std::iter::once(encoder.finish()));
+    }
+
+    pub fn render_format(&self) -> wgpu::TextureFormat {
+        self.context.render_format
     }
 }

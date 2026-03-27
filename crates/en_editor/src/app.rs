@@ -3,12 +3,12 @@ use egui_dock::{DockArea, DockState, NodeIndex, TabViewer};
 use en_core::bevy_ecs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{Receiver, channel};
+use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use en_core::engine::EnEngine;
 use crate::panels::{self, inspector};
+use en_core::engine::EnEngine;
 
 // ----------------------------------------------------------------------------
 // DOCKING SYSTEM DEFINITIONS
@@ -61,7 +61,7 @@ impl<'a, 'b> TabViewer for EditorTabViewer<'a, 'b> {
 pub struct EditorUiState {
     pub project_path: String,
     pub is_playing: bool,
-    pub selected_entity: Option<bevy_ecs::entity::Entity>, 
+    pub selected_entity: Option<bevy_ecs::entity::Entity>,
 
     pub is_building: Arc<AtomicBool>,
     pub build_receiver: Option<Receiver<bool>>,
@@ -71,9 +71,9 @@ pub struct EditorUiState {
 
     pub current_asset_path: PathBuf,
     pub last_asset_path: PathBuf,
-    pub asset_cache: Vec<(PathBuf, String, bool)>, 
+    pub asset_cache: Vec<(PathBuf, String, bool)>,
     pub logs: Arc<Mutex<Vec<String>>>,
-    
+
     pub viewport_texture: Option<wgpu::Texture>,
     pub viewport_texture_id: Option<egui::TextureId>,
 }
@@ -85,25 +85,29 @@ pub struct EditorApp {
 
 impl EditorApp {
     pub fn new(
-        project_path: String, 
-        device: Arc<wgpu::Device>, 
-        queue: Arc<wgpu::Queue>, 
-        target_format: wgpu::TextureFormat
+        project_path: String,
+        device: Arc<wgpu::Device>,
+        queue: Arc<wgpu::Queue>,
+        target_format: wgpu::TextureFormat,
     ) -> Self {
-        
-        let game_registry = en_core::PluginRegistry { components: vec![], systems: vec![] };
+        let game_registry = en_core::PluginRegistry {
+            components: vec![],
+            systems: vec![],
+        };
 
-        let mut engine = EnEngine::new_for_editor(device, queue, target_format, game_registry);
+        let mut engine = EnEngine::new_headless(device, queue, target_format, game_registry);
         pollster::block_on(engine.init_project(&project_path));
 
         inspector::setup_inspector_registry(&mut engine.world);
 
         let mut dock_state = DockState::new(vec![EditorTab::Viewport]);
         let surface = dock_state.main_surface_mut();
-        
-        let [main, _right] = surface.split_right(NodeIndex::root(), 0.75, vec![EditorTab::Inspector]);
+
+        let [main, _right] =
+            surface.split_right(NodeIndex::root(), 0.75, vec![EditorTab::Inspector]);
         let [_left, center] = surface.split_left(main, 0.2, vec![EditorTab::SceneTree]);
-        let [_viewport, _bottom] = surface.split_below(center, 0.7, vec![EditorTab::Assets, EditorTab::Console]);
+        let [_viewport, _bottom] =
+            surface.split_below(center, 0.7, vec![EditorTab::Assets, EditorTab::Console]);
 
         let ui_state = EditorUiState {
             project_path: project_path.clone(),
@@ -122,7 +126,7 @@ impl EditorApp {
         };
 
         let mut app = Self { engine, ui_state };
-        
+
         app.reload_dll();
 
         app
@@ -136,14 +140,18 @@ impl EditorApp {
 
             for entry in entries_vec {
                 let path = entry.path();
-                let file_name = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
+                let file_name = path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .into_owned();
                 let is_dir = path.is_dir();
                 self.ui_state.asset_cache.push((path, file_name, is_dir));
             }
         }
         self.ui_state.last_asset_path = self.ui_state.current_asset_path.clone();
     }
-    
+
     pub fn log(&self, message: &str) {
         if let Ok(mut logs) = self.ui_state.logs.lock() {
             logs.push(format!("[Editor] {}", message));
@@ -165,11 +173,11 @@ impl EditorApp {
         let project_path = self.ui_state.project_path.clone();
         let is_building_clone = self.ui_state.is_building.clone();
         let ctx_clone = ctx.clone();
-        
+
         std::thread::spawn(move || {
             let status = std::process::Command::new("cargo")
                 .arg("build")
-                .arg("--lib") 
+                .arg("--lib")
                 .current_dir(project_path)
                 .status();
 
@@ -180,7 +188,7 @@ impl EditorApp {
 
             let _ = tx.send(success);
             is_building_clone.store(false, Ordering::SeqCst);
-            ctx_clone.request_repaint(); 
+            ctx_clone.request_repaint();
         });
     }
 
@@ -201,7 +209,7 @@ impl EditorApp {
     fn reload_dll(&mut self) {
         let project_dir = std::path::Path::new(&self.ui_state.project_path);
         let json_path = project_dir.join("en_project.json");
-        
+
         let mut proj_name = String::from("game");
         if let Ok(data) = std::fs::read_to_string(&json_path) {
             if let Ok(json) = serde_json::from_str::<serde_json::Value>(&data) {
@@ -231,7 +239,10 @@ impl EditorApp {
             }
         }
 
-        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
         let hotreload_lib_name = format!("{}{}_hotreload_{}.{}", prefix, proj_name, timestamp, ext);
         let hotreload_lib_path = target_debug_dir.join(&hotreload_lib_name);
 
@@ -243,16 +254,18 @@ impl EditorApp {
         unsafe {
             match libloading::Library::new(&hotreload_lib_path) {
                 Ok(lib) => {
-                    let func: Result<libloading::Symbol<unsafe extern "C" fn() -> *mut en_core::PluginRegistry>, _> = 
-                        lib.get(b"en_get_plugin_registry\0");
-                        
+                    let func: Result<
+                        libloading::Symbol<unsafe extern "C" fn() -> *mut en_core::PluginRegistry>,
+                        _,
+                    > = lib.get(b"en_get_plugin_registry\0");
+
                     if let Ok(get_registry) = func {
                         let registry_ptr = get_registry();
-                        let registry = Box::from_raw(registry_ptr); 
+                        let registry = Box::from_raw(registry_ptr);
 
                         self.engine.reload_plugins(*registry);
                         self.log("✨ Domain Reload completed! Logic updated.");
-                        
+
                         self.ui_state.active_plugin_lib = Some(lib);
                     } else {
                         self.log("⚠ 'en_get_plugin_registry' not found in library.");
@@ -272,7 +285,7 @@ impl EditorApp {
 impl eframe::App for EditorApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.check_build_status();
-        
+
         egui::TopBottomPanel::top("top_bar")
             .frame(en_ui::theme::bar_frame())
             .show(ctx, |ui| {
@@ -280,15 +293,19 @@ impl eframe::App for EditorApp {
             });
 
         egui::CentralPanel::default()
-            .frame(egui::Frame::NONE) 
+            .frame(egui::Frame::NONE)
             .show(ctx, |ui| {
-                let placeholder = DockState::new(vec![]); 
+                let placeholder = DockState::new(vec![]);
 
-                let mut current_dock_state = std::mem::replace(&mut self.ui_state.dock_state, placeholder);
-                
+                let mut current_dock_state =
+                    std::mem::replace(&mut self.ui_state.dock_state, placeholder);
+
                 {
-                    let mut viewer = EditorTabViewer { app: self, frame: _frame };
-                    
+                    let mut viewer = EditorTabViewer {
+                        app: self,
+                        frame: _frame,
+                    };
+
                     DockArea::new(&mut current_dock_state)
                         .style(egui_dock::Style::from_egui(ctx.style().as_ref()))
                         .show_inside(ui, &mut viewer);

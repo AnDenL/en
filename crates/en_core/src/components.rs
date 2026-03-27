@@ -1,6 +1,6 @@
-use en_macros::en_component;
+use crate::Color;
 use crate::prelude::{ReflectComponent, ReflectDefault};
-use crate::{Color, SpriteId};
+use en_macros::en_component;
 
 #[en_component]
 pub struct Name(pub String);
@@ -27,8 +27,8 @@ pub struct Vel {
 
 #[en_component]
 pub struct SpriteRenderer {
-    pub s_id: SpriteId,
-    pub color: Color, 
+    //pub s_id: SpriteId,
+    pub color: Color,
     pub layer: f32,
     pub flip_x: bool,
     pub flip_y: bool,

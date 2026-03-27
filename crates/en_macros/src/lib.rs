@@ -1,7 +1,7 @@
 extern crate proc_macro;
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{ItemFn, ItemStruct, parse_macro_input};
+use syn::{Fields, ItemFn, ItemStruct, parse_macro_input};
 
 #[proc_macro_attribute]
 pub fn en_system(_attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -33,11 +33,13 @@ pub fn en_system(_attr: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn include_scripts(_input: TokenStream) -> TokenStream {
     let mut expanded = quote! {};
-    
+
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-    
-    let scripts_path = std::path::Path::new(&manifest_dir).join("src").join("scripts");
-    
+
+    let scripts_path = std::path::Path::new(&manifest_dir)
+        .join("src")
+        .join("scripts");
+
     if let Ok(entries) = std::fs::read_dir(&scripts_path) {
         for entry in entries.flatten() {
             let path = entry.path();
@@ -57,21 +59,48 @@ pub fn include_scripts(_input: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn en_component(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input_struct = parse_macro_input!(item as ItemStruct);
-    let name = &input_struct.ident;
+    let mut component = parse_macro_input!(item as ItemStruct);
+    let name = &component.ident;
     let name_str = name.to_string();
+
+    match &mut component.fields {
+        Fields::Named(fields) => {
+            for field in &mut fields.named {
+                let mut ignore = false;
+                if field.attrs.len() > 0 {
+                    field.attrs.retain(|attr| {
+                        let is_ignore = attr.path().is_ident("ignore");
+
+                        if is_ignore {
+                            ignore = true;
+                            false
+                        } else {
+                            true
+                        }
+                    });
+                }
+
+                if ignore {
+                    field.attrs.push(syn::parse_quote!(#[serde(skip)]));
+                    field.attrs.push(syn::parse_quote!(#[reflect(ignore)]));
+                }
+            }
+        }
+        _ => {}
+    }
+
     let expanded = quote! {
         #[derive(
-            bevy_ecs::prelude::Component, 
-            bevy_reflect::Reflect, 
+            bevy_ecs::prelude::Component,
+            bevy_reflect::Reflect,
             serde::Serialize,
-            serde::Deserialize, 
-            Clone, 
-            Debug, 
+            serde::Deserialize,
+            Clone,
+            Debug,
             smart_default::SmartDefault
         )]
-        #[reflect(Component, Default)] 
-        #input_struct
+        #[reflect(Component, Default)]
+        #component
 
         inventory::submit! {
             ::en_core::ComponentTemplate {
