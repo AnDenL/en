@@ -1,6 +1,25 @@
+use directories::ProjectDirs;
 use std::fs;
 use std::path::PathBuf;
-use directories::ProjectDirs;
+
+#[derive(Debug)]
+pub enum EditorConfigError {
+    NoProjectDirsFound,
+    IoError(std::io::Error),
+    SerializationError(serde_json::Error),
+}
+
+impl From<std::io::Error> for EditorConfigError {
+    fn from(err: std::io::Error) -> Self {
+        EditorConfigError::IoError(err)
+    }
+}
+
+impl From<serde_json::Error> for EditorConfigError {
+    fn from(err: serde_json::Error) -> Self {
+        EditorConfigError::SerializationError(err)
+    }
+}
 
 #[derive(serde::Serialize, serde::Deserialize, Default)]
 pub struct EditorConfig {
@@ -8,20 +27,24 @@ pub struct EditorConfig {
 }
 
 /// Finds the correct folder to store our editor config (e.g., AppData on Windows, ~/.config on Linux).
-pub fn get_editor_config_path() -> PathBuf {
+pub fn get_editor_config_path() -> Result<PathBuf, EditorConfigError> {
     if let Some(proj_dirs) = ProjectDirs::from("com", "en", "EnEngine") {
         let config_dir = proj_dirs.config_dir();
-        fs::create_dir_all(config_dir).unwrap(); // Ensure the directory exists
-        config_dir.join("editor_config.json")
+        fs::create_dir_all(config_dir)?; // Ensure the directory exists
+        Ok(config_dir.join("editor_config.json"))
     } else {
-        panic!("Could not find system folder for configs!");
+        Err(EditorConfigError::NoProjectDirsFound)
     }
 }
 
 pub fn load_editor_config() -> EditorConfig {
-    let path = get_editor_config_path();
+    let path = match get_editor_config_path() {
+        Ok(p) => p,
+        Err(_) => return EditorConfig::default(), // Return default if path cannot be determined
+    };
+
     if path.exists() {
-        if let Ok(data) = fs::read_to_string(path) {
+        if let Ok(data) = fs::read_to_string(&path) {
             if let Ok(config) = serde_json::from_str(&data) {
                 return config;
             }
@@ -31,8 +54,12 @@ pub fn load_editor_config() -> EditorConfig {
 }
 
 pub fn save_editor_config(config: &EditorConfig) {
-    let path = get_editor_config_path();
+    let path = match get_editor_config_path() {
+        Ok(p) => p,
+        Err(_) => return, // Do nothing if path cannot be determined
+    };
+
     if let Ok(data) = serde_json::to_string_pretty(config) {
-        let _ = fs::write(path, data);
+        let _ = fs::write(&path, data); // Consider logging this error
     }
 }

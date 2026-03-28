@@ -1,5 +1,5 @@
-use eframe::egui;
-use egui_dock::{DockArea, DockState, NodeIndex, TabViewer};
+use eframe::{egui, wgpu};
+use egui_tiles::{Behavior, Linear, LinearDir, TileId, Tree, UiResponse};
 use en_core::bevy_ecs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -25,31 +25,32 @@ pub enum EditorTab {
     Console,
 }
 
-struct EditorTabViewer<'a, 'b> {
+struct EditorBehavior<'a, 'b> {
     app: &'a mut EditorApp,
     frame: &'b mut eframe::Frame,
 }
 
-impl<'a, 'b> TabViewer for EditorTabViewer<'a, 'b> {
-    type Tab = EditorTab;
-
-    fn title(&mut self, tab: &mut Self::Tab) -> egui::WidgetText {
-        match tab {
-            EditorTab::Viewport => "🎮 Viewport".into(),
-            EditorTab::SceneTree => "🌲 Scene Tree".into(),
-            EditorTab::Inspector => "⚙ Inspector".into(),
-            EditorTab::Assets => "📁 Assets".into(),
-            EditorTab::Console => "💻 Console".into(),
-        }
-    }
-
-    fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
+impl<'a, 'b> Behavior<EditorTab> for EditorBehavior<'a, 'b> {
+    fn pane_ui(&mut self, ui: &mut egui::Ui, _tile_id: TileId, tab: &mut EditorTab) -> UiResponse {
         match tab {
             EditorTab::Assets => panels::assets::draw(ui, self.app),
             EditorTab::Console => panels::console::draw(ui, self.app),
             EditorTab::Viewport => panels::viewport::draw(ui, self.app, self.frame),
             EditorTab::SceneTree => panels::scene_tree::draw(ui, self.app),
             EditorTab::Inspector => panels::inspector::draw(ui, self.app),
+        }
+
+        // Вказуємо, що ми не виконуємо спеціальних дій (напр. закриття)
+        UiResponse::None
+    }
+
+    fn tab_title_for_pane(&mut self, tab: &EditorTab) -> egui::WidgetText {
+        match tab {
+            EditorTab::Viewport => "🎮 Viewport".into(),
+            EditorTab::SceneTree => "🌲 Scene Tree".into(),
+            EditorTab::Inspector => "⚙ Inspector".into(),
+            EditorTab::Assets => "📁 Assets".into(),
+            EditorTab::Console => "💻 Console".into(),
         }
     }
 }
@@ -67,7 +68,7 @@ pub struct EditorUiState {
     pub build_receiver: Option<Receiver<bool>>,
     pub active_plugin_lib: Option<libloading::Library>,
 
-    pub dock_state: DockState<EditorTab>,
+    pub tree: Tree<EditorTab>,
 
     pub current_asset_path: PathBuf,
     pub last_asset_path: PathBuf,
@@ -100,14 +101,37 @@ impl EditorApp {
 
         inspector::setup_inspector_registry(&mut engine.world);
 
-        let mut dock_state = DockState::new(vec![EditorTab::Viewport]);
-        let surface = dock_state.main_surface_mut();
+        // --- ІНІЦІАЛІЗАЦІЯ ДЕРЕВА EGUI_TILES ---
+        let mut tree = Tree::empty("editor_tree");
 
-        let [main, _right] =
-            surface.split_right(NodeIndex::root(), 0.75, vec![EditorTab::Inspector]);
-        let [_left, center] = surface.split_left(main, 0.2, vec![EditorTab::SceneTree]);
-        let [_viewport, _bottom] =
-            surface.split_below(center, 0.7, vec![EditorTab::Assets, EditorTab::Console]);
+        // 1. Створюємо тайли для кожної панелі
+        let viewport = tree.tiles.insert_pane(EditorTab::Viewport);
+        let scene_tree = tree.tiles.insert_pane(EditorTab::SceneTree);
+        let inspector = tree.tiles.insert_pane(EditorTab::Inspector);
+        let assets = tree.tiles.insert_pane(EditorTab::Assets);
+        let console = tree.tiles.insert_pane(EditorTab::Console);
+
+        // 2. Групуємо вкладки "Ассети" та "Консоль" знизу
+        let bottom_tabs = tree.tiles.insert_tab_tile(vec![assets, console]);
+
+        // 3. Формуємо центральну колонку (В'юпорт зверху, вкладки знизу)
+        let mut center_linear = Linear::new(LinearDir::Vertical, vec![viewport, bottom_tabs]);
+        center_linear.shares.set_share(viewport, 0.75);
+        center_linear.shares.set_share(bottom_tabs, 0.25);
+        let center_col = tree.tiles.insert_container(center_linear);
+
+        // 4. Формуємо головний горизонтальний макет (Дерево зліва, Центр посередині, Інспектор справа)
+        let mut root_linear = Linear::new(
+            LinearDir::Horizontal,
+            vec![scene_tree, center_col, inspector],
+        );
+        root_linear.shares.set_share(scene_tree, 0.2);
+        root_linear.shares.set_share(center_col, 0.6);
+        root_linear.shares.set_share(inspector, 0.2);
+        let root_id = tree.tiles.insert_container(root_linear);
+
+        // Встановлюємо корінь дерева
+        tree.root = Some(root_id);
 
         let ui_state = EditorUiState {
             project_path: project_path.clone(),
@@ -116,7 +140,7 @@ impl EditorApp {
             is_building: Arc::new(AtomicBool::new(false)),
             build_receiver: None,
             active_plugin_lib: None,
-            dock_state,
+            tree,
             current_asset_path: PathBuf::from(&project_path),
             last_asset_path: PathBuf::from("."),
             asset_cache: Vec::new(),
@@ -126,9 +150,7 @@ impl EditorApp {
         };
 
         let mut app = Self { engine, ui_state };
-
         app.reload_dll();
-
         app
     }
 
@@ -283,40 +305,37 @@ impl EditorApp {
 // EFRAME UPDATE LOOP
 // ----------------------------------------------------------------------------
 impl eframe::App for EditorApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.check_build_status();
 
-        egui::TopBottomPanel::top("top_bar")
+        egui::Panel::top("top_bar")
             .frame(en_ui::theme::bar_frame())
-            .show(ctx, |ui| {
-                panels::top_bar::draw(ctx, ui, self);
+            .show_inside(ui, |ui| {
+                panels::top_bar::draw(ui, self);
             });
 
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
-            .show(ctx, |ui| {
-                let placeholder = DockState::new(vec![]);
-
-                let mut current_dock_state =
-                    std::mem::replace(&mut self.ui_state.dock_state, placeholder);
+            .show_inside(ui, |ui| {
+                let mut current_tree =
+                    std::mem::replace(&mut self.ui_state.tree, Tree::empty("placeholder"));
 
                 {
-                    let mut viewer = EditorTabViewer {
-                        app: self,
-                        frame: _frame,
-                    };
+                    let mut behavior = EditorBehavior { app: self, frame };
 
-                    DockArea::new(&mut current_dock_state)
-                        .style(egui_dock::Style::from_egui(ctx.style().as_ref()))
-                        .show_inside(ui, &mut viewer);
+                    // Малюємо структуру панелей (Docking)
+                    current_tree.ui(&mut behavior, ui);
                 }
 
-                self.ui_state.dock_state = current_dock_state;
+                // Повертаємо дерево назад
+                self.ui_state.tree = current_tree;
             });
 
         if self.ui_state.is_playing {
             self.engine.update();
-            ctx.request_repaint();
+            ui.request_repaint();
         }
     }
+
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {}
 }

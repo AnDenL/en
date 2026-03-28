@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-wgpu = "27.0"
+wgpu = "29.0"
 winit = { version = "0.30", default-features = false, features = ["rwh_06", "x11", "wayland"] }
 serde = { version = "1.0", features = ["derive"] }
-bytemuck = { version = "1.16", features = ["derive"] }
+bytemuck = { version = "1.25", features = ["derive"] }

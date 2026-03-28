@@ -1,12 +1,12 @@
+use chrono::Local;
+use directories::ProjectDirs;
 use eframe::egui;
+use en_ui::theme;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use directories::ProjectDirs;
-use chrono::Local;
-use en_ui::theme;
 
-const ENGINE_PATH: &str = "/home/andenl/Documents/GitHub/en/crates"; 
+const ENGINE_PATH: &str = "/home/andenl/Documents/GitHub/en/crates";
 const CURRENT_ENGINE_VERSION: &str = "1.0";
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -47,46 +47,60 @@ impl HubApp {
 }
 
 impl eframe::App for HubApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let mut needs_save = false;
 
-        egui::TopBottomPanel::top("top_panel")
+        egui::Panel::top("top_panel")
             .frame(egui::Frame::new().fill(theme::BG).inner_margin(12.0))
-            .show(ctx, |ui| {
+            .show_inside(ui, |ui| {
                 ui.available_rect_before_wrap();
-                
+
                 ui.horizontal(|ui| {
                     ui.label(
                         egui::RichText::new("En projects")
                             .color(theme::ACCENT)
-                            .size(32.0) 
-                            .strong()
+                            .size(32.0)
+                            .strong(),
                     );
 
                     ui.add_space(20.0);
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let close_btn = ui.button(egui::RichText::new(" ❌ ").color(theme::ACCENT_BRIGHT).size(24.0));
+                        let close_btn = ui.button(
+                            egui::RichText::new(" ❌ ")
+                                .color(theme::ACCENT_BRIGHT)
+                                .size(24.0),
+                        );
                         if close_btn.clicked() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                            ui.send_viewport_cmd(egui::ViewportCommand::Close);
                         }
-                        
+
                         ui.add_space(15.0);
 
-                        let import_btn = ui.button(egui::RichText::new(" 📥 Import ").color(theme::ACCENT).size(20.0));
+                        let import_btn = ui.button(
+                            egui::RichText::new(" 📥 Import ")
+                                .color(theme::ACCENT)
+                                .size(20.0),
+                        );
                         if import_btn.clicked() {
                             if let Some(folder) = rfd::FileDialog::new().pick_folder() {
                                 let json_path = folder.join("en_project.json");
                                 if json_path.exists() {
-                                    let mut proj_name = folder.file_name().unwrap_or_default().to_string_lossy().into_owned();
+                                    let mut proj_name = folder
+                                        .file_name()
+                                        .unwrap_or_default()
+                                        .to_string_lossy()
+                                        .into_owned();
                                     if let Ok(data) = fs::read_to_string(&json_path) {
-                                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&data) {
+                                        if let Ok(json) =
+                                            serde_json::from_str::<serde_json::Value>(&data)
+                                        {
                                             if let Some(n) = json["project_name"].as_str() {
                                                 proj_name = n.to_string();
                                             }
                                         }
                                     }
-                                    
+
                                     let current_date = Local::now().format("%d.%m.%Y").to_string();
                                     self.add_and_save_project(ProjectRecord {
                                         name: proj_name,
@@ -95,26 +109,37 @@ impl eframe::App for HubApp {
                                         is_favorite: false,
                                     });
                                 } else {
-                                    self.status_message = "Error: Selected folder is not an En Engine project!".to_string();
+                                    self.status_message =
+                                        "Error: Selected folder is not an En Engine project!"
+                                            .to_string();
                                 }
                             }
                         }
 
                         ui.add_space(10.0);
 
-                        let new_btn = ui.button(egui::RichText::new(" ➕ New ").color(theme::ACCENT).size(20.0));
+                        let new_btn = ui.button(
+                            egui::RichText::new(" ➕ New ")
+                                .color(theme::ACCENT)
+                                .size(20.0),
+                        );
                         if new_btn.clicked() {
                             self.show_new_project = !self.show_new_project;
                             self.status_message.clear();
                         }
 
                         if !self.status_message.is_empty() && !self.show_new_project {
-                            ui.label(egui::RichText::new(&self.status_message).color(theme::ERROR).size(16.0));
+                            ui.label(
+                                egui::RichText::new(&self.status_message)
+                                    .color(theme::ERROR)
+                                    .size(16.0),
+                            );
                         }
 
-                        let drag_response = ui.allocate_response(ui.available_size(), egui::Sense::click());
+                        let drag_response =
+                            ui.allocate_response(ui.available_size(), egui::Sense::click());
                         if drag_response.is_pointer_button_down_on() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
+                            ui.send_viewport_cmd(egui::ViewportCommand::StartDrag);
                         }
                     });
                 });
@@ -122,7 +147,7 @@ impl eframe::App for HubApp {
 
         egui::CentralPanel::default()
             .frame(egui::Frame::new().fill(theme::BG).inner_margin(16.0))
-            .show(ctx, |ui| {
+            .show(ui, |ui| {
                 let mut remove_idx = None;
                 let mut relocate_idx = None;
 
@@ -133,7 +158,7 @@ impl eframe::App for HubApp {
                         let predicted_rect = egui::Rect::from_min_size(rect_min, egui::vec2(item_width, 64.0));
 
                         let card_response = ui.interact(predicted_rect, ui.id().with(&proj.path), egui::Sense::click());
-                        
+
                         let is_hovered = ui.rect_contains_pointer(predicted_rect);
                         let fill_color = if is_hovered { theme::CARD_HOVER } else { theme::CARD_BG };
 
@@ -141,7 +166,7 @@ impl eframe::App for HubApp {
                             .fill(fill_color)
                             .corner_radius(6.0)
                             .inner_margin(16.0);
-                        
+
                         let proj_path = PathBuf::from(&proj.path);
                         let json_path = proj_path.join("en_project.json");
                         let icon_path = PathBuf::from(&proj.path).join("icon.png");
@@ -151,7 +176,7 @@ impl eframe::App for HubApp {
                             ui.horizontal(|ui| {
                                 if icon_path.exists() {
                                     let icon_uri = format!("file://{}", icon_path.display());
-                                    
+
                                     ui.add(
                                         egui::Image::new(&icon_uri)
                                             .max_width(36.0)
@@ -160,8 +185,8 @@ impl eframe::App for HubApp {
                                 } else {
                                     let (rect, _) = ui.allocate_at_least(egui::vec2(36.0, 36.0), egui::Sense::hover());
                                     ui.painter().rect_stroke(
-                                        rect, 
-                                        4.0, 
+                                        rect,
+                                        4.0,
                                         egui::Stroke::new(1.0, theme::TEXT_MUTED),
                                         egui::StrokeKind::Middle
                                     );
@@ -174,16 +199,16 @@ impl eframe::App for HubApp {
                                     );
                                 }
                                 ui.add_space(12.0);
-                                
+
                                 ui.vertical(|ui| {
-                                    ui.label(egui::RichText::new(&proj.name).color(theme::ACCENT).size(24.0).strong()); 
+                                    ui.label(egui::RichText::new(&proj.name).color(theme::ACCENT).size(24.0).strong());
                                     ui.label(egui::RichText::new(&proj.path).color(theme::TEXT_MUTED).size(14.0));
                                 });
-                                
+
                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                     if ui.button(egui::RichText::new("🗑").size(20.0).color(theme::ERROR))
                                         .on_hover_text("Remove from list")
-                                        .clicked() 
+                                        .clicked()
                                     {
                                         remove_idx = Some(idx);
                                     }
@@ -195,7 +220,7 @@ impl eframe::App for HubApp {
                                         let fav_btn = ui.add(egui::Button::new(
                                             egui::RichText::new(fav_text).color(theme::ACCENT).size(24.0)
                                         ).fill(egui::Color32::TRANSPARENT));
-                                        
+
                                         if fav_btn.clicked() {
                                             proj.is_favorite = !proj.is_favorite;
                                             needs_save = true;
@@ -237,7 +262,7 @@ impl eframe::App for HubApp {
                                 .spawn()
                                 .expect("Failed to start en_editor");
                         }
-                        
+
                         ui.add_space(8.0);
                     }
                 });
@@ -260,36 +285,58 @@ impl eframe::App for HubApp {
                 .title_bar(false)
                 .collapsible(false)
                 .resizable(false)
-                .default_pos(ctx.content_rect().center())
+                .default_pos(ui.content_rect().center())
                 .pivot(egui::Align2::CENTER_CENTER)
-                .fixed_size([400.0, 0.0]) 
-                .frame(egui::Frame::window(&ctx.style())
-                    .fill(theme::CARD_BG)
-                    .inner_margin(16.0)
-                    .corner_radius(8.0)
+                .fixed_size([400.0, 0.0])
+                .frame(
+                    egui::Frame::window(&ui.style())
+                        .fill(theme::CARD_BG)
+                        .inner_margin(16.0)
+                        .corner_radius(8.0),
                 )
-                .show(ctx, |ui| {
+                .show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new("Create New Project").size(22.0).strong().color(theme::ACCENT));
+                        ui.label(
+                            egui::RichText::new("Create New Project")
+                                .size(22.0)
+                                .strong()
+                                .color(theme::ACCENT),
+                        );
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.button(egui::RichText::new(" ❌ ").size(16.0).color(theme::ACCENT_BRIGHT)).clicked() {
+                            if ui
+                                .button(
+                                    egui::RichText::new(" ❌ ")
+                                        .size(16.0)
+                                        .color(theme::ACCENT_BRIGHT),
+                                )
+                                .clicked()
+                            {
                                 self.show_new_project = false;
                                 self.status_message.clear();
                             }
                         });
                     });
-                    
+
                     ui.add_space(8.0);
                     ui.separator();
                     ui.add_space(12.0);
-                    
+
                     let label_width = 50.0;
 
                     ui.horizontal(|ui| {
-                        ui.add_sized([label_width, 20.0], egui::Label::new(egui::RichText::new("Name:").size(16.0).color(theme::TEXT_MUTED)));
-                        ui.add(egui::TextEdit::singleline(&mut self.new_project_name)
-                            .margin(egui::vec2(8.0, 8.0))
-                            .desired_width(f32::INFINITY));
+                        ui.add_sized(
+                            [label_width, 20.0],
+                            egui::Label::new(
+                                egui::RichText::new("Name:")
+                                    .size(16.0)
+                                    .color(theme::TEXT_MUTED),
+                            ),
+                        );
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.new_project_name)
+                                .margin(egui::vec2(8.0, 8.0))
+                                .desired_width(f32::INFINITY),
+                        );
                     });
 
                     if !self.new_project_name.is_empty() {
@@ -297,47 +344,69 @@ impl eframe::App for HubApp {
                         if safe != self.new_project_name.to_lowercase() {
                             ui.add_space(4.0);
                             ui.horizontal(|ui| {
-                                ui.add_space(label_width + 12.0); 
-                                ui.label(egui::RichText::new(format!("⚠ Cargo name: {}", safe))
-                                    .size(12.0)
-                                    .color(theme::WARNING));
+                                ui.add_space(label_width + 12.0);
+                                ui.label(
+                                    egui::RichText::new(format!("⚠ Cargo name: {}", safe))
+                                        .size(12.0)
+                                        .color(theme::WARNING),
+                                );
                             });
                         }
                     }
-                    
+
                     ui.add_space(10.0);
 
                     ui.horizontal(|ui| {
-                        ui.add_sized([label_width, 20.0], egui::Label::new(egui::RichText::new("Path:").size(16.0).color(theme::TEXT_MUTED)));
-                        
+                        ui.add_sized(
+                            [label_width, 20.0],
+                            egui::Label::new(
+                                egui::RichText::new("Path:")
+                                    .size(16.0)
+                                    .color(theme::TEXT_MUTED),
+                            ),
+                        );
+
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.add(egui::Button::new(egui::RichText::new(" 📁 ").size(18.0)).min_size(egui::vec2(40.0, 32.0))).clicked() {
+                            if ui
+                                .add(
+                                    egui::Button::new(egui::RichText::new(" 📁 ").size(18.0))
+                                        .min_size(egui::vec2(40.0, 32.0)),
+                                )
+                                .clicked()
+                            {
                                 if let Some(folder) = rfd::FileDialog::new().pick_folder() {
                                     self.new_project_path = folder.to_string_lossy().into_owned();
                                 }
                             }
 
-                            ui.add(egui::TextEdit::singleline(&mut self.new_project_path)
-                                .margin(egui::vec2(8.0, 8.0))
-                                .desired_width(f32::INFINITY));
+                            ui.add(
+                                egui::TextEdit::singleline(&mut self.new_project_path)
+                                    .margin(egui::vec2(8.0, 8.0))
+                                    .desired_width(f32::INFINITY),
+                            );
                         });
                     });
 
                     ui.add_space(20.0);
-                    
+
                     let create_btn = ui.add_sized(
                         [ui.available_width(), 40.0],
-                        egui::Button::new(egui::RichText::new("Create Project").size(18.0).strong())
-                            .fill(theme::ACCENT)
+                        egui::Button::new(
+                            egui::RichText::new("Create Project").size(18.0).strong(),
+                        )
+                        .fill(theme::ACCENT),
                     );
 
                     if create_btn.clicked() {
-                        if self.new_project_name.trim().is_empty() || self.new_project_path.trim().is_empty() {
-                            self.status_message = "Error: Enter name and select location!".to_string();
+                        if self.new_project_name.trim().is_empty()
+                            || self.new_project_path.trim().is_empty()
+                        {
+                            self.status_message =
+                                "Error: Enter name and select location!".to_string();
                         } else {
                             let base_folder = PathBuf::from(&self.new_project_path);
                             let project_path = base_folder.join(&self.new_project_name);
-                            
+
                             match create_project_structure(&project_path, &self.new_project_name) {
                                 Ok(record) => {
                                     self.add_and_save_project(record);
@@ -355,8 +424,16 @@ impl eframe::App for HubApp {
 
                     if !self.status_message.is_empty() {
                         ui.add_space(10.0);
-                        let msg_color = if self.status_message.starts_with("Error") { theme::ERROR } else { theme::WARNING };
-                        ui.label(egui::RichText::new(&self.status_message).color(msg_color).size(14.0));
+                        let msg_color = if self.status_message.starts_with("Error") {
+                            theme::ERROR
+                        } else {
+                            theme::WARNING
+                        };
+                        ui.label(
+                            egui::RichText::new(&self.status_message)
+                                .color(msg_color)
+                                .size(14.0),
+                        );
                     }
                 });
         }
@@ -388,8 +465,7 @@ fn create_project_structure(base_path: &Path, name: &str) -> Result<ProjectRecor
         .replace("{project_name}", &safe_name)
         .replace("{engine_path}", ENGINE_PATH);
 
-    let lib_rs = lib_template
-        .replace("{project_name}", &safe_name);
+    let lib_rs = lib_template.replace("{project_name}", &safe_name);
 
     let en_project_json = json_template
         .replace("{project_name}", name)
@@ -401,7 +477,8 @@ fn create_project_structure(base_path: &Path, name: &str) -> Result<ProjectRecor
     fs::write(base_path.join("en_project.json"), en_project_json).map_err(|e| e.to_string())?;
 
     let base_scene = r#"{ "entities": [] }"#;
-    fs::write(base_path.join("assets").join("main.scene"), base_scene).map_err(|e| e.to_string())?;
+    fs::write(base_path.join("assets").join("main.scene"), base_scene)
+        .map_err(|e| e.to_string())?;
 
     let current_date = Local::now().format("%d.%m.%Y").to_string();
 
@@ -415,7 +492,13 @@ fn create_project_structure(base_path: &Path, name: &str) -> Result<ProjectRecor
 
 fn sanitize_package_name(name: &str) -> String {
     name.chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect::<String>()
         .to_lowercase()
 }

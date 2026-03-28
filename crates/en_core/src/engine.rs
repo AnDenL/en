@@ -250,7 +250,6 @@ struct EngineApp {
     engine: Rc<RefCell<Option<EnEngine>>>,
     project_path: String,
     plugin_registry: Option<crate::PluginRegistry>,
-    // ТЕПЕР EngineApp САМ ВОЛОДІЄ ВІКНОМ
     window: Option<Arc<Window>>,
 }
 

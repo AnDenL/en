@@ -1,5 +1,5 @@
 use crate::app::EditorApp;
-use eframe::egui;
+use eframe::{egui, wgpu};
 
 pub fn draw(ui: &mut egui::Ui, app: &mut EditorApp, frame: &mut eframe::Frame) {
     let size = ui.available_size();

@@ -4,6 +4,7 @@ use crate::context::RenderContext;
 use crate::texture::GpuTexture;
 use crate::types::{InstanceData, RenderBatch};
 use std::sync::Arc;
+use wgpu::CurrentSurfaceTexture;
 use winit::window::Window;
 
 pub struct Renderer {
@@ -81,7 +82,7 @@ impl Renderer {
     }
 
     /// Основний метод рендера для гри. Тепер приймає Batcher напряму для зручності.
-    pub fn render(&mut self, batcher: &mut SpriteBatcher) -> Result<(), wgpu::SurfaceError> {
+    pub fn render(&mut self, batcher: &mut SpriteBatcher) -> Result<(), &'static str> {
         batcher.finish(); // Закриваємо останній батч автоматично
 
         let surface = self
@@ -89,7 +90,27 @@ impl Renderer {
             .surface
             .as_ref()
             .expect("Renderer has no surface!");
-        let output = surface.get_current_texture()?;
+
+        let output = match surface.get_current_texture() {
+            // У цих двох випадках ми отримуємо текстуру і продовжуємо
+            CurrentSurfaceTexture::Success(x) | CurrentSurfaceTexture::Suboptimal(x) => x,
+
+            // Якщо застаріло або втрачено — треба переконфігурувати
+            CurrentSurfaceTexture::Outdated | CurrentSurfaceTexture::Lost => {
+                // Отримуємо поточні розміри і викликаємо існуючий resize
+                // (Якщо у тебе є доступ до розмірів вікна тут, або поверни помилку наверх)
+                return Err("SurfaceNeedReconfigure");
+            }
+
+            // В інших випадках просто нічого не робимо в цьому кадрі
+            CurrentSurfaceTexture::Timeout | CurrentSurfaceTexture::Occluded => return Ok(()),
+
+            CurrentSurfaceTexture::Validation => {
+                eprintln!("WGPU Validation error occurred");
+                return Ok(());
+            }
+        };
+
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());

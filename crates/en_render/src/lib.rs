@@ -9,5 +9,6 @@ mod types;
 pub use api::Renderer;
 pub use batcher::SpriteBatcher;
 pub use config::{FilterMode, PowerPreference, RenderSettings};
+pub use context::RenderContext;
 pub use texture::GpuTexture;
 pub use types::{InstanceData, RenderBatch, Vertex};

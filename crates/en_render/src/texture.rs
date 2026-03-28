@@ -14,8 +14,12 @@ impl GpuTexture {
         height: u32,
         filter: FilterMode,
     ) -> wgpu::BindGroup {
-        let size = wgpu::Extent3d { width, height, depth_or_array_layers: 1 };
-        
+        let size = wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        };
+
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("EnEngine Texture"),
             size,
@@ -45,9 +49,9 @@ impl GpuTexture {
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        let wgpu_filter = match filter {
-            FilterMode::Nearest => wgpu::FilterMode::Nearest,
-            FilterMode::Linear => wgpu::FilterMode::Linear,
+        let (wgpu_filter, mipmap_filter) = match filter {
+            FilterMode::Nearest => (wgpu::FilterMode::Nearest, wgpu::MipmapFilterMode::Nearest),
+            FilterMode::Linear => (wgpu::FilterMode::Linear, wgpu::MipmapFilterMode::Linear),
         };
 
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -56,15 +60,21 @@ impl GpuTexture {
             address_mode_w: wgpu::AddressMode::ClampToEdge,
             mag_filter: wgpu_filter,
             min_filter: wgpu_filter,
-            mipmap_filter: wgpu_filter,
+            mipmap_filter: mipmap_filter,
             ..Default::default()
         });
 
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout,
             entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&view) },
-                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&sampler) },
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&sampler),
+                },
             ],
             label: Some("texture_bind_group"),
         })
@@ -79,6 +89,14 @@ impl GpuTexture {
     ) -> wgpu::BindGroup {
         // Один білий непрозорий піксель (R:255, G:255, B:255, A:255)
         let white_pixel: [u8; 4] = [255, 255, 255, 255];
-        Self::create_texture_bind_group(device, queue, layout, &white_pixel, 1, 1, FilterMode::Nearest)
+        Self::create_texture_bind_group(
+            device,
+            queue,
+            layout,
+            &white_pixel,
+            1,
+            1,
+            FilterMode::Nearest,
+        )
     }
 }
