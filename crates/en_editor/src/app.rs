@@ -315,7 +315,7 @@ impl eframe::App for EditorApp {
             });
 
         egui::CentralPanel::default()
-            .frame(egui::Frame::NONE)
+            //.frame(egui::Frame::NONE)
             .show_inside(ui, |ui| {
                 let mut current_tree =
                     std::mem::replace(&mut self.ui_state.tree, Tree::empty("placeholder"));
@@ -336,6 +336,4 @@ impl eframe::App for EditorApp {
             ui.request_repaint();
         }
     }
-
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {}
 }

@@ -102,7 +102,6 @@ pub fn draw(ui: &mut egui::Ui, app: &mut EditorApp) {
         });
     });
 
-    // --- WINDOW DRAGGING LOGIC ---
     let play_hovered = play_btn_res.map_or(false, |r| r.hovered());
     let build_hovered = build_btn_res.map_or(false, |r| r.hovered());
 
@@ -113,7 +112,7 @@ pub fn draw(ui: &mut egui::Ui, app: &mut EditorApp) {
         || build_hovered;
 
     if ui.rect_contains_pointer(header_rect) && !any_btn_hovered {
-        if ui.input(|i| i.pointer.primary_down()) {
+        if ui.input(|i| i.pointer.primary_pressed()) {
             ui.send_viewport_cmd(egui::ViewportCommand::StartDrag);
         }
     }

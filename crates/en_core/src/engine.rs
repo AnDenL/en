@@ -2,6 +2,7 @@ use bevy_ecs::component::Component;
 use bevy_ecs::prelude::Schedule;
 use bevy_ecs::reflect::AppTypeRegistry;
 use bevy_ecs::world::World;
+use winit::dpi::Position;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -17,6 +18,7 @@ use en_render::*;
 use crate::assets::AssetLoader;
 use crate::config::ProjectConfig;
 use crate::input::Input;
+use crate::prelude::{SpriteRenderer, Transform};
 use crate::scene::Scene;
 use crate::time::Time;
 
@@ -113,9 +115,13 @@ impl EnEngine {
         let mut batcher = SpriteBatcher::new();
         batcher.begin();
 
-        // Тут буде твій код збору спрайтів (build_render_batches),
-        // який наповнюватиме batcher.
-        // поки що просто викликаємо рендер порожнього батчера
+        let mut query = self.world.query::<(&Transform, &SpriteRenderer)>();
+
+        // 2. Ітеруємося по всіх знайдених компонентах у світі
+        for (transform, sprite) in query.iter(&self.world) {
+            // 3. Збираємо спрайти в batcher
+            // (Тут використовуй реальні методи твого SpriteBatcher)
+        }
 
         if self.renderer.render(&mut batcher).is_err() {
             return Err("Failed to render frame");

@@ -147,7 +147,7 @@ impl eframe::App for HubApp {
 
         egui::CentralPanel::default()
             .frame(egui::Frame::new().fill(theme::BG).inner_margin(16.0))
-            .show(ui, |ui| {
+            .show_inside(ui, |ui| {
                 let mut remove_idx = None;
                 let mut relocate_idx = None;
 
